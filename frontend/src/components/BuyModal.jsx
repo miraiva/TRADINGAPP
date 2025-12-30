@@ -2,6 +2,45 @@ import React, { useState, useEffect } from 'react';
 import { tradesAPI, marketDataAPI, referenceDataAPI, zerodhaAPI } from '../services/api';
 import './BuyModal.css';
 
+// Load symbol-industry mapping
+let symbolIndustryMapping = {};
+let mappingLoaded = false;
+let mappingLoadPromise = null;
+
+const loadSymbolIndustryMapping = async () => {
+  if (mappingLoaded) return; // Already loaded
+  if (mappingLoadPromise) return mappingLoadPromise; // Already loading, return existing promise
+  
+  mappingLoadPromise = (async () => {
+    try {
+      const response = await fetch('/symbol_industry_mapping.json');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      // Create a map for quick lookup
+      symbolIndustryMapping = {};
+      data.forEach(item => {
+        if (item.symbol && item.industry) {
+          symbolIndustryMapping[item.symbol.toUpperCase()] = item.industry;
+        }
+      });
+      mappingLoaded = true;
+      console.log(`Loaded ${Object.keys(symbolIndustryMapping).length} symbol-industry mappings`);
+    } catch (err) {
+      console.warn('Failed to load symbol-industry mapping:', err);
+      mappingLoaded = false; // Allow retry
+    } finally {
+      mappingLoadPromise = null;
+    }
+  })();
+  
+  return mappingLoadPromise;
+};
+
+// Load mapping on module load
+loadSymbolIndustryMapping();
+
 const BuyModal = ({ onClose, onBuyComplete, inSlider = false }) => {
   const [formData, setFormData] = useState({
     symbol: '',
@@ -20,9 +59,73 @@ const BuyModal = ({ onClose, onBuyComplete, inSlider = false }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [stocksList, setStocksList] = useState([]);
-  const [industriesList, setIndustriesList] = useState([]);
+  // Static list of industries (alphabetically arranged)
+  const industriesList = [
+    'Aerospace & Defense',
+    'Automobiles & Auto Parts',
+    'Banking Services',
+    'Beverages',
+    'Chemicals',
+    'Coal',
+    'Communications & Networking',
+    'Computers, Phones & Household Electronics',
+    'Construction & Engineering',
+    'Construction Materials',
+    'Diversified Industrial Goods Wholesale',
+    'Diversified Retail',
+    'Electrical Utilities & IPPs',
+    'ETF',
+    'Financial Technology (Fintech) & Infrastructure',
+    'Food & Drug Retailing',
+    'Food & Tobacco',
+    'Freight & Logistics Services',
+    'Healthcare Providers & Services',
+    'Hotels & Entertainment Services',
+    'Insurance',
+    'Integrated Hardware & Software',
+    'Investment Banking & Investment Services',
+    'Machinery, Equipment & Components',
+    'Media & Publishing',
+    'Metals & Mining',
+    'Natural Gas Utilities',
+    'Oil & Gas',
+    'Passenger Transportation Services',
+    'Personal & Household Products & Services',
+    'Pharmaceuticals',
+    'Professional & Commercial Services',
+    'Real Estate Operations',
+    'School, College & University',
+    'Semiconductors & Semiconductor Equipment',
+    'Software & IT Services',
+    'Telecommunications Services',
+    'Textiles & Apparel',
+    'Transport Infrastructure'
+  ];
   const [loadingStocks, setLoadingStocks] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
+  
+  // Auto-populate industry when symbol changes and mapping is available
+  // This handles cases where symbol is set programmatically (e.g., from dropdown selection)
+  useEffect(() => {
+    const updateIndustry = async () => {
+      await loadSymbolIndustryMapping(); // Ensure mapping is loaded
+      const symbol = formData.symbol.trim().toUpperCase();
+      if (symbol && symbolIndustryMapping[symbol]) {
+        setFormData(prev => {
+          // Always update to use mapping if available
+          const mappedIndustry = symbolIndustryMapping[symbol];
+          if (prev.industry !== mappedIndustry) {
+            return {
+              ...prev,
+              industry: mappedIndustry
+            };
+          }
+          return prev;
+        });
+      }
+    };
+    updateIndustry();
+  }, [formData.symbol]);
   const [filteredStocks, setFilteredStocks] = useState([]);
   const [searchTimeout, setSearchTimeout] = useState(null);
   
@@ -195,10 +298,7 @@ const BuyModal = ({ onClose, onBuyComplete, inSlider = false }) => {
         const stocks = response.data.stocks || [];
         setStocksList(stocks);
         setFilteredStocks(stocks);
-        
-        // Extract unique industries
-        const industries = [...new Set(stocks.map(s => s.industry).filter(Boolean))].sort();
-        setIndustriesList(industries);
+        // Industries are now static - no need to extract from stocks
       }
     } catch (err) {
       console.warn('Failed to load stocks list:', err);
@@ -211,32 +311,68 @@ const BuyModal = ({ onClose, onBuyComplete, inSlider = false }) => {
   const handleSymbolSelect = async (selectedSymbol) => {
     setSymbolSearch('');
     
+    // Ensure mapping is loaded
+    await loadSymbolIndustryMapping();
+    
+    // First, check the symbol-industry mapping (fastest, no API call)
+    const symbolUpper = selectedSymbol.toUpperCase();
+    const mappedIndustry = symbolIndustryMapping[symbolUpper];
+    
+    // Debug logging
+    if (mappedIndustry) {
+      console.log(`Found industry mapping for ${symbolUpper}: ${mappedIndustry}`);
+    } else {
+      console.log(`No industry mapping found for ${symbolUpper}. Available mappings: ${Object.keys(symbolIndustryMapping).slice(0, 5).join(', ')}...`);
+    }
+    
     // Get reference data for selected symbol (from filtered results or fetch)
     const selectedStock = filteredStocks.find(s => s.symbol === selectedSymbol);
     
     if (selectedStock) {
-      // Auto-populate from selected stock
-      setFormData(prev => ({
-        ...prev,
-        symbol: selectedSymbol,
-        company_name: selectedStock.name || '',
-        industry: selectedStock.industry || prev.industry
-      }));
+      // Auto-populate from selected stock, ALWAYS prefer mapping if available
+      setFormData(prev => {
+        // Determine industry: mapping first, then stock industry, then keep existing
+        let industryToUse = prev.industry; // Default to existing
+        if (mappedIndustry) {
+          industryToUse = mappedIndustry; // Mapping takes priority
+        } else if (selectedStock.industry && selectedStock.industry.trim()) {
+          industryToUse = selectedStock.industry; // Use stock industry if available
+        }
+        
+        return {
+          ...prev,
+          symbol: selectedSymbol,
+          company_name: selectedStock.name || '',
+          industry: industryToUse
+        };
+      });
     } else {
       // Fetch reference data if not in filtered results
       try {
         const refData = await referenceDataAPI.getStockReference(selectedSymbol, formData.exchange || 'NSE');
-        setFormData(prev => ({
-          ...prev,
-          symbol: selectedSymbol,
-          company_name: refData?.company_name || '',
-          industry: refData?.industry || prev.industry
-        }));
+        setFormData(prev => {
+          // Determine industry: mapping first, then refData industry, then keep existing
+          let industryToUse = prev.industry; // Default to existing
+          if (mappedIndustry) {
+            industryToUse = mappedIndustry; // Mapping takes priority
+          } else if (refData?.industry && refData.industry.trim()) {
+            industryToUse = refData.industry; // Use refData industry if available
+          }
+          
+          return {
+            ...prev,
+            symbol: selectedSymbol,
+            company_name: refData?.company_name || '',
+            industry: industryToUse
+          };
+        });
       } catch (err) {
         console.warn('Failed to fetch reference data:', err);
         setFormData(prev => ({
           ...prev,
-          symbol: selectedSymbol
+          symbol: selectedSymbol,
+          // Use mapping if available, otherwise keep existing
+          industry: mappedIndustry || prev.industry
         }));
       }
     }
@@ -326,7 +462,48 @@ const BuyModal = ({ onClose, onBuyComplete, inSlider = false }) => {
       }
       onClose();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to add trade. Please try again.');
+      console.error('Error creating trade:', err);
+      
+      // Handle different error formats
+      let errorMessage = 'Failed to add trade. Please try again.';
+      
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        
+        // Handle Pydantic validation errors (array of error objects)
+        if (Array.isArray(errorData.detail)) {
+          const errorMessages = errorData.detail.map(e => {
+            if (typeof e === 'string') return e;
+            if (typeof e === 'object' && e.msg) {
+              const field = Array.isArray(e.loc) && e.loc.length > 1 ? e.loc[e.loc.length - 1] : 'field';
+              return `${field}: ${e.msg}`;
+            }
+            return JSON.stringify(e);
+          });
+          errorMessage = errorMessages.join(', ');
+        }
+        // Handle single detail string
+        else if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        }
+        // Handle error object with message
+        else if (errorData.detail && typeof errorData.detail === 'object' && errorData.detail.msg) {
+          errorMessage = errorData.detail.msg;
+        }
+        // Handle other error formats
+        else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+        else if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        }
+      }
+      // Handle error message directly
+      else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -361,8 +538,28 @@ const BuyModal = ({ onClose, onBuyComplete, inSlider = false }) => {
                 name="symbol"
                 value={formData.symbol}
                 onChange={(e) => {
+                  const newSymbol = e.target.value;
                   handleChange(e);
-                  setSymbolSearch(e.target.value);
+                  setSymbolSearch(newSymbol);
+                  // Auto-populate industry immediately when symbol changes
+                  const symbol = newSymbol.trim().toUpperCase();
+                  if (symbol && symbolIndustryMapping[symbol]) {
+                    setFormData(prev => ({
+                      ...prev,
+                      symbol: newSymbol,
+                      industry: symbolIndustryMapping[symbol] || prev.industry
+                    }));
+                  }
+                }}
+                onBlur={(e) => {
+                  // When user finishes typing, check mapping for industry (fallback)
+                  const symbol = e.target.value.trim().toUpperCase();
+                  if (symbol && symbolIndustryMapping[symbol] && !formData.industry) {
+                    setFormData(prev => ({
+                      ...prev,
+                      industry: symbolIndustryMapping[symbol]
+                    }));
+                  }
                 }}
                 onFocus={() => {
                   if (formData.symbol) {
