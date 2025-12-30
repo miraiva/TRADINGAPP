@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { tradesAPI, marketDataAPI, referenceDataAPI, getMarketDataToken } from '../services/api';
 import { websocketService } from '../services/websocket';
 import SellModal from './SellModal';
+import EditTradeModal from './EditTradeModal';
 import './TradesTable.css';
 
 const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, filter: propFilter = null, searchTerm: propSearchTerm = null, industryFilter = null, profitFilter: propProfitFilter = null, onTradesUpdate = null }) => {
@@ -10,15 +11,19 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState(propFilter !== null ? propFilter : 'all'); // 'all', 'OPEN', 'CLOSED'
   const [sellModalOpen, setSellModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
   const [actionsTrade, setActionsTrade] = useState(null);
   const [showActionsPopup, setShowActionsPopup] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingTrade, setDeletingTrade] = useState(null);
   const [updatingPrices, setUpdatingPrices] = useState(false);
   const [companyName, setCompanyName] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [searchTerm, setSearchTerm] = useState(propSearchTerm !== null ? propSearchTerm : '');
   const [profitFilter, setProfitFilter] = useState(propProfitFilter !== null ? propProfitFilter : null);
   const [websocketUpdateTracker, setWebsocketUpdateTracker] = useState(new Map()); // Track which symbols got WebSocket updates
+  const tradesUpdateRef = useRef(null); // Track trades updates to notify parent after render
 
   // Update local state when props change, but preserve WebSocket price updates
   useEffect(() => {
@@ -132,15 +137,8 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
       const dataSource = localStorage.getItem('market_data_source') || 'ZERODHA';
       console.log('TradesTable: Updating prices for all open trades via REST API (fallback)');
       
-      // Add timeout wrapper to prevent hanging (20 seconds)
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Price update timeout')), 20000)
-      );
-      
-      const updatedTrades = await Promise.race([
-        tradesAPI.updatePrices(dataSource),
-        timeoutPromise
-      ]);
+      // Use longer timeout (30 seconds) for price updates
+      const updatedTrades = await tradesAPI.updatePrices(dataSource, true);
       
       console.log(`TradesTable: Received ${updatedTrades.length} updated trades from API`);
       
@@ -155,10 +153,9 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
           return trade;
         });
         
-        // Notify parent component (Dashboard) of price updates from REST API
+        // Store updated trades to notify parent after render
         if (onTradesUpdate) {
-          console.log('TradesTable: Notifying Dashboard of REST API price updates');
-          onTradesUpdate(updated);
+          tradesUpdateRef.current = updated;
         }
         
         return updated;
@@ -182,24 +179,28 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
     (async () => {
       try {
         const { referenceDataAPI } = await import('../services/api');
-        // Use a longer timeout for reference data population (20 seconds)
-        // This is a background operation, so we can wait a bit longer
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 20000)
-        );
-        await Promise.race([
-          referenceDataAPI.populate(false),
-          timeoutPromise
-        ]);
+        // The referenceDataAPI.populate now uses a 60-second timeout
+        // This is a background operation, so we don't need Promise.race anymore
+        await referenceDataAPI.populate(false);
       } catch (err) {
         // Silently fail - this is a background operation
         // Only log if it's not a timeout (to reduce console noise)
-        if (err.message !== 'Timeout') {
+        if (err.code !== 'ECONNABORTED' && err.message !== 'Timeout') {
           console.warn('Failed to populate reference data:', err);
         }
       }
     })();
   }, [filter, propTrades]);
+
+  // Notify parent component of trades updates after render (not during render)
+  useEffect(() => {
+    if (tradesUpdateRef.current && onTradesUpdate) {
+      const updatedTrades = tradesUpdateRef.current;
+      tradesUpdateRef.current = null; // Clear the ref
+      console.log('TradesTable: Notifying Dashboard of trades update');
+      onTradesUpdate(updatedTrades);
+    }
+  }, [trades, onTradesUpdate]);
 
   // Memoize open trade symbols for WebSocket dependency
   const openTradeSymbols = useMemo(() => {
@@ -225,20 +226,30 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
           const defaultAccount = localStorage.getItem('default_trading_account');
           
           if (defaultAccount && tokens[defaultAccount]) {
+            console.log('TradesTable: Using default trading account token:', defaultAccount);
             return { accessToken: tokens[defaultAccount].access_token, userId: defaultAccount };
           }
           
           // Fallback to first available account
           const accountIds = Object.keys(tokens);
           if (accountIds.length > 0) {
+            console.log('TradesTable: Using first available account token:', accountIds[0]);
             return { accessToken: tokens[accountIds[0]].access_token, userId: accountIds[0] };
           }
           
           // Fallback to old storage
-          return {
-            accessToken: localStorage.getItem('zerodha_access_token'),
-            userId: localStorage.getItem('zerodha_user_id')
-          };
+          const oldToken = localStorage.getItem('zerodha_access_token');
+          const oldUserId = localStorage.getItem('zerodha_user_id');
+          if (oldToken) {
+            console.log('TradesTable: Using old storage format token');
+            return { accessToken: oldToken, userId: oldUserId };
+          }
+          
+          // No token found at all
+          console.warn('TradesTable: No access token found in any storage location');
+          console.warn('TradesTable: Available tokens:', Object.keys(tokens));
+          console.warn('TradesTable: Default account:', defaultAccount);
+          return { accessToken: null, userId: null };
         }
         
         // Get market data account ID from preferences
@@ -253,10 +264,16 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
             // Ignore parse errors
           }
           if (!marketDataAccount) {
-            marketDataAccount = 'UU6974'; // Default fallback
+            // Try to find the account that has the token we just got
+            const tokens = getAccountTokens();
+            marketDataAccount = Object.keys(tokens).find(userId => tokens[userId].access_token === marketDataToken);
+            if (!marketDataAccount) {
+              marketDataAccount = 'UU6974'; // Default fallback
+            }
           }
         }
         
+        console.log('TradesTable: Using market data account token:', marketDataAccount);
         return {
           accessToken: marketDataToken,
           userId: marketDataAccount
@@ -264,44 +281,64 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
       } catch (error) {
         console.error('Error getting market data account:', error);
         // Fallback to old storage
+        const oldToken = localStorage.getItem('zerodha_access_token');
+        const oldUserId = localStorage.getItem('zerodha_user_id');
         return {
-          accessToken: localStorage.getItem('zerodha_access_token'),
-          userId: localStorage.getItem('zerodha_user_id')
+          accessToken: oldToken,
+          userId: oldUserId
         };
       }
     };
     
-    const { accessToken, userId } = getMarketDataAccount();
+    // Helper to get account tokens (same as in api.js)
+    const getAccountTokens = () => {
+      try {
+        const tokensJson = localStorage.getItem('zerodha_account_tokens');
+        return tokensJson ? JSON.parse(tokensJson) : {};
+      } catch {
+        return {};
+      }
+    };
     
-    // Only connect if we have a token
-    if (!accessToken) {
-      console.warn('TradesTable: No access token available for WebSocket connection');
-      return;
-    }
+    // Try to get token with retry logic (in case login just happened)
+    let retryCount = 0;
+    const maxRetries = 5;
+    const retryDelay = 500; // 500ms
     
-    if (!userId) {
-      console.warn('TradesTable: No user ID available for WebSocket connection');
-      return;
-    }
+    const tryConnect = () => {
+      const { accessToken, userId } = getMarketDataAccount();
+      
+      // Only connect if we have a token
+      if (!accessToken) {
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`TradesTable: No access token available, retrying in ${retryDelay}ms (attempt ${retryCount}/${maxRetries})`);
+          setTimeout(tryConnect, retryDelay);
+          return;
+        } else {
+          console.warn('TradesTable: No access token available for WebSocket connection after retries');
+          return;
+        }
+      }
+      
+      // Use memoized symbols - get ALL open trade symbols regardless of account
+      const symbols = openTradeSymbols;
+      
+      console.log(`TradesTable: Found ${symbols.length} unique open trade symbols:`, symbols);
+      console.log(`TradesTable: All open trades:`, trades.filter(t => t.status === 'OPEN').map(t => ({ 
+        symbol: t.symbol, 
+        account: t.zerodha_user_id,
+        current_price: t.current_price 
+      })));
 
-    // Use memoized symbols - get ALL open trade symbols regardless of account
-    const symbols = openTradeSymbols;
-    
-    console.log(`TradesTable: Found ${symbols.length} unique open trade symbols:`, symbols);
-    console.log(`TradesTable: All open trades:`, trades.filter(t => t.status === 'OPEN').map(t => ({ 
-      symbol: t.symbol, 
-      account: t.zerodha_user_id,
-      current_price: t.current_price 
-    })));
+      if (symbols.length === 0) {
+        console.warn('TradesTable: No open trades found, skipping WebSocket connection');
+        return;
+      }
 
-    if (symbols.length === 0) {
-      console.warn('TradesTable: No open trades found, skipping WebSocket connection');
-      return;
-    }
-
-    // Set up WebSocket callbacks
-    const handlePriceUpdate = (data) => {
-      // Update trade price in real-time
+      // Set up WebSocket callbacks
+      const handlePriceUpdate = (data) => {
+        // Update trade price in real-time
       const newPrice = data.price;
       const symbol = data.symbol;
       
@@ -359,48 +396,50 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
             prevTrades.filter(t => t.status === 'OPEN').map(t => t.symbol));
         }
         
-        // Notify parent component (Dashboard) of price updates
+        // Store updated trades to notify parent after render
         if (updated && onTradesUpdate) {
-          // Notify parent with all updated trades so Dashboard can recalculate metrics
-          console.log('TradesTable: Notifying Dashboard of price update for', symbol);
-          onTradesUpdate(updatedTrades);
+          tradesUpdateRef.current = updatedTrades;
         }
         
         return updatedTrades;
       });
     };
 
-    // Register price update callback
-    websocketService.onPriceUpdate(handlePriceUpdate);
+      // Register price update callback
+      websocketService.onPriceUpdate(handlePriceUpdate);
 
-    // Connect WebSocket using market data account (paid account)
-    // This allows LTP updates for ALL trades regardless of which account they belong to
-    console.log(`TradesTable: Connecting WebSocket for market data account ${userId} with ${symbols.length} symbols:`, symbols);
-    console.log(`TradesTable: This will update LTP for all open trades, regardless of account:`, symbols);
-    websocketService.connect(accessToken, userId, symbols);
-    
-    // Add connection status logging
-    websocketService.onConnected(() => {
-      console.log('TradesTable: WebSocket connected successfully');
-    });
-    
-    websocketService.onError((error) => {
-      console.error('TradesTable: WebSocket error:', error);
-    });
+      // Connect WebSocket using market data account (paid account)
+      // This allows LTP updates for ALL trades regardless of which account they belong to
+      console.log(`TradesTable: Connecting WebSocket for market data account ${userId} with ${symbols.length} symbols:`, symbols);
+      console.log(`TradesTable: This will update LTP for all open trades, regardless of account:`, symbols);
+      websocketService.connect(accessToken, userId, symbols);
+      
+      // Add connection status logging
+      websocketService.onConnected(() => {
+        console.log('TradesTable: WebSocket connected successfully');
+      });
+      
+      websocketService.onError((error) => {
+        console.error('TradesTable: WebSocket error:', error);
+      });
 
-    // Cleanup on unmount or when dependencies change
-    return () => {
-      // Remove this specific callback
-      const index = websocketService.callbacks.priceUpdate.indexOf(handlePriceUpdate);
-      if (index > -1) {
-        websocketService.callbacks.priceUpdate.splice(index, 1);
-      }
-      // Only disconnect if no other callbacks are registered
-      if (websocketService.callbacks.priceUpdate.length === 0) {
-        websocketService.disconnect();
-      }
+      // Cleanup on unmount or when dependencies change
+      return () => {
+        // Remove this specific callback
+        const index = websocketService.callbacks.priceUpdate.indexOf(handlePriceUpdate);
+        if (index > -1) {
+          websocketService.callbacks.priceUpdate.splice(index, 1);
+        }
+        // Only disconnect if no other callbacks are registered
+        if (websocketService.callbacks.priceUpdate.length === 0) {
+          websocketService.disconnect();
+        }
+      };
     };
-  }, [openTradeSymbols]);
+    
+    // Start trying to connect
+    tryConnect();
+  }, [openTradeSymbols, trades]);
 
   // Fallback: Periodic price updates for symbols that might not get WebSocket updates
   // This ensures all symbols get price updates even if WebSocket fails for some
@@ -500,6 +539,49 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
     fetchTrades();
   };
 
+  const handleEditClick = (trade) => {
+    setSelectedTrade(trade);
+    setEditModalOpen(true);
+    setShowActionsPopup(false);
+  };
+
+  const handleEditComplete = () => {
+    setEditModalOpen(false);
+    setSelectedTrade(null);
+    setShowActionsPopup(false);
+    setActionsTrade(null);
+    fetchTrades();
+  };
+
+  const handleDeleteClick = (trade) => {
+    setDeletingTrade(trade);
+    setShowDeleteConfirm(true);
+    setShowActionsPopup(false);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingTrade) return;
+    
+    try {
+      await tradesAPI.deleteTrade(deletingTrade.id);
+      setShowDeleteConfirm(false);
+      setDeletingTrade(null);
+      setActionsTrade(null);
+      fetchTrades();
+      
+      // Dispatch event to notify Dashboard
+      window.dispatchEvent(new CustomEvent('tradeDeleted'));
+    } catch (err) {
+      console.error('Error deleting trade:', err);
+      alert(err.response?.data?.detail || 'Failed to delete trade. Please try again.');
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setDeletingTrade(null);
+  };
+
   const handleCloseActionsPopup = () => {
     setShowActionsPopup(false);
     setActionsTrade(null);
@@ -551,6 +633,22 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
   const getProfitLossClass = (value) => {
     if (value === null || value === undefined) return '';
     return value >= 0 ? 'profit' : 'loss';
+  };
+
+  const calculateCharge = (trade) => {
+    const buyCharges = trade.buy_charges || 0;
+    const sellCharges = trade.sell_charges || 0;
+    const totalCharges = buyCharges + sellCharges;
+    
+    if (totalCharges > 0) {
+      return totalCharges;
+    }
+    
+    // If charges not available, use 0.15% of amount
+    const amount = trade.status === 'CLOSED' 
+      ? (trade.buy_amount || 0) + (trade.sell_amount || 0)
+      : (trade.buy_amount || 0);
+    return amount * 0.0015;
   };
 
   const handleSort = (key) => {
@@ -811,6 +909,9 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
                 >
                   P/L % <span className="sort-icon">{getSortIcon('profit_percentage')}</span>
                 </th>
+                <th className="numeric-header">
+                  Charge
+                </th>
                 <th 
                   className="numeric-header sortable" 
                   onClick={() => handleSort('day_change')}
@@ -869,6 +970,9 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
                   <td className={`profit-loss-cell numeric-cell ${getProfitLossClass(trade.profit_percentage)}`}>
                     {formatPercentage(trade.profit_percentage)}
                   </td>
+                  <td className="numeric-cell">
+                    {formatCurrency(calculateCharge(trade))}
+                  </td>
                   <td className={`profit-loss-cell numeric-cell ${getProfitLossClass(trade.day_change)}`}>
                     {formatCurrency(trade.day_change)}
                   </td>
@@ -895,6 +999,57 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
         />
       )}
 
+      {editModalOpen && selectedTrade && (
+        <EditTradeModal
+          trade={selectedTrade}
+          onClose={() => {
+            setEditModalOpen(false);
+            setSelectedTrade(null);
+          }}
+          onUpdateComplete={handleEditComplete}
+        />
+      )}
+
+      {showDeleteConfirm && deletingTrade && (
+        <div className="modal-overlay" onClick={handleDeleteCancel}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Delete Trade</h2>
+              <button className="modal-close" onClick={handleDeleteCancel}>×</button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete this trade?</p>
+              <div style={{ marginTop: '1rem', padding: '1rem', background: '#f3f4f6', borderRadius: '8px' }}>
+                <p><strong>Symbol:</strong> {deletingTrade.symbol}</p>
+                <p><strong>Buy Date:</strong> {new Date(deletingTrade.buy_date).toLocaleDateString()}</p>
+                <p><strong>Quantity:</strong> {deletingTrade.quantity}</p>
+                <p><strong>Buy Price:</strong> ₹{deletingTrade.buy_price}</p>
+              </div>
+              <p style={{ marginTop: '1rem', color: '#ef4444', fontWeight: 'bold' }}>
+                This action cannot be undone.
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                onClick={handleDeleteCancel}
+                className="btn-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteConfirm}
+                className="btn-confirm"
+                style={{ background: '#ef4444' }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Actions Popup */}
       {showActionsPopup && actionsTrade && (
         <div className="actions-popup-overlay" onClick={handleCloseActionsPopup}>
@@ -912,6 +1067,17 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
             </div>
             <div className="actions-popup-content">
               <div className="actions-cards-grid">
+                <div 
+                  className="action-card action-card-edit"
+                  onClick={() => handleEditClick(actionsTrade)}
+                >
+                  <div className="action-card-icon">✏️</div>
+                  <div className="action-card-content">
+                    <h4 className="action-card-title">Edit</h4>
+                    <p className="action-card-description">Edit trade details</p>
+                  </div>
+                  <div className="action-card-arrow">→</div>
+                </div>
                 {actionsTrade.status === 'OPEN' && (
                   <div 
                     className="action-card action-card-sell"
@@ -925,6 +1091,17 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
                     <div className="action-card-arrow">→</div>
                   </div>
                 )}
+                <div 
+                  className="action-card action-card-delete"
+                  onClick={() => handleDeleteClick(actionsTrade)}
+                >
+                  <div className="action-card-icon">🗑️</div>
+                  <div className="action-card-content">
+                    <h4 className="action-card-title">Delete</h4>
+                    <p className="action-card-description">Delete this trade</p>
+                  </div>
+                  <div className="action-card-arrow">→</div>
+                </div>
                 <div className="action-card action-card-hold" style={{ opacity: 0.6, cursor: 'not-allowed' }}>
                   <div className="action-card-icon">📊</div>
                   <div className="action-card-content">
@@ -975,4 +1152,5 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
 };
 
 export default TradesTable;
+
 

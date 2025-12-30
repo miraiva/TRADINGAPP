@@ -48,8 +48,12 @@ def get_api_key_for_user(zerodha_user_id: Optional[str], db: Optional[Session] =
         return (ZERODHA_API_KEY, ZERODHA_API_SECRET)
 
 
-def get_kite_instance(access_token: str, api_key: Optional[str] = None) -> KiteConnect:
+def get_kite_instance(access_token: str, api_key: Optional[str] = None, zerodha_user_id: Optional[str] = None, db: Optional[Session] = None) -> KiteConnect:
     """Get a KiteConnect instance with access token"""
+    # If api_key not provided, try to get it for the user
+    if not api_key and zerodha_user_id and db:
+        api_key, _ = get_api_key_for_user(zerodha_user_id, db)
+    
     api_key_to_use = api_key or ZERODHA_API_KEY
     if not api_key_to_use:
         raise ValueError("API key not configured")
@@ -130,7 +134,11 @@ def place_order(
     order_type: str = "MARKET",
     product: str = "CNC",
     price: Optional[float] = None,
-    validity: str = "DAY"
+    validity: str = "DAY",
+    variety: str = "regular",
+    api_key: Optional[str] = None,
+    zerodha_user_id: Optional[str] = None,
+    db: Optional[Session] = None
 ) -> Dict:
     """
     Place an order via Zerodha API
@@ -143,16 +151,31 @@ def place_order(
         quantity: Quantity
         order_type: MARKET, LIMIT, SL, SL-M
         product: CNC, MIS, NRML
-        price: Price for LIMIT orders
+        price: Price for LIMIT orders (required when order_type is LIMIT)
         validity: DAY, IOC, TTL
+        variety: Order variety (default: "regular")
+        api_key: Optional API key (for user-specific keys)
+        zerodha_user_id: Optional user ID (for user-specific keys)
+        db: Optional database session (for user-specific keys)
     
     Returns:
         Order response with order_id
+        
+    Raises:
+        ValueError: If price is missing for LIMIT orders
     """
     try:
-        kite = get_kite_instance(access_token)
+        kite = get_kite_instance(access_token, api_key=api_key, zerodha_user_id=zerodha_user_id, db=db)
         
+        logger.info(f"Placing {transaction_type} order: {tradingsymbol} on {exchange}, qty={quantity}, type={order_type}, product={product}, variety={variety}")
+        
+        # Validate price for LIMIT orders
+        if order_type == "LIMIT" and price is None:
+            raise ValueError("price is required when order_type is LIMIT")
+        
+        # Build order parameters
         order_params = {
+            "variety": variety,  # REQUIRED parameter
             "exchange": exchange,
             "tradingsymbol": tradingsymbol,
             "transaction_type": transaction_type,
@@ -162,26 +185,27 @@ def place_order(
             "validity": validity,
         }
         
-        if price and order_type == "LIMIT":
+        # Add price only for LIMIT orders
+        if order_type == "LIMIT" and price is not None:
             order_params["price"] = price
         
         order_id = kite.place_order(**order_params)
         
-        logger.info(f"Order placed: {order_id} for {tradingsymbol}")
+        logger.info(f"Order placed successfully: order_id={order_id}, symbol={tradingsymbol}, type={order_type}")
         
         return {
             "order_id": str(order_id),
             "status": "success"
         }
     except Exception as e:
-        logger.error(f"Error placing order: {e}")
+        logger.error(f"Error placing order for {tradingsymbol}: {e}", exc_info=True)
         raise
 
 
-def get_order_status(access_token: str, order_id: str) -> Dict:
+def get_order_status(access_token: str, order_id: str, api_key: Optional[str] = None, zerodha_user_id: Optional[str] = None, db: Optional[Session] = None) -> Dict:
     """Get status of an order"""
     try:
-        kite = get_kite_instance(access_token)
+        kite = get_kite_instance(access_token, api_key=api_key, zerodha_user_id=zerodha_user_id, db=db)
         orders = kite.orders()
         
         for order in orders:

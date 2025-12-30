@@ -218,6 +218,24 @@
   color: #1a1a1a;
   line-height: 1.2;
   margin-top: 0.5rem;
+  display: flex;
+  align-items: baseline;  
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.day-change-indicator {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-left: 0.25rem;
+}
+
+.day-change-indicator.positive {
+  color: #10b981;
+}
+
+.day-change-indicator.negative {
+  color: #ef4444;
 }
 
 .card-value.positive {

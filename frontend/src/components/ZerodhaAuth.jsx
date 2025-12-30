@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { zerodhaAPI, syncAPI, debugAPI, migrationAPI } from '../services/api';
+import { websocketService } from '../services/websocket';
 import './ZerodhaAuth.css';
 
 // Helper functions for multi-account token storage
@@ -120,6 +121,7 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [availableUserIds, setAvailableUserIds] = useState([]);
   const [loadingUserIds, setLoadingUserIds] = useState(false);
+  const [websocketError, setWebsocketError] = useState(false);
 
   // Check for OAuth callback
   useEffect(() => {
@@ -133,6 +135,95 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
+
+  // Listen to websocket errors and connection state
+  useEffect(() => {
+    const handleWebsocketError = (error) => {
+      console.error('ZerodhaAuth: WebSocket error detected:', error);
+      const mainStatus = getMainAccountStatus();
+      if (mainStatus.isConnected) {
+        console.log('ZerodhaAuth: Setting websocket error state to true');
+        setWebsocketError(true);
+      }
+    };
+
+    const handleWebsocketConnected = () => {
+      console.log('ZerodhaAuth: WebSocket connected successfully');
+      // Clear error when websocket connects successfully
+      setWebsocketError(false);
+    };
+
+    const handleWebsocketDisconnected = () => {
+      console.log('ZerodhaAuth: WebSocket disconnected');
+      // Set error if disconnected (but only if auth is successful)
+      const mainStatus = getMainAccountStatus();
+      if (mainStatus.isConnected) {
+        // When websocket disconnects and auth is successful, set error state
+        // The periodic check will clear it if websocket reconnects
+        console.log('ZerodhaAuth: Auth successful but WebSocket disconnected, setting error state');
+        setWebsocketError(true);
+      }
+    };
+
+    // Check websocket connection state
+    const checkWebsocketState = () => {
+      const mainStatus = getMainAccountStatus();
+      
+      if (mainStatus.isConnected) {
+        // If auth is successful, check if websocket is connected
+        const ws = websocketService.ws;
+        const isWsConnected = websocketService.isConnected();
+        
+        // Check if websocket exists and its state
+        if (ws) {
+          const readyState = ws.readyState;
+          // WebSocket states: CONNECTING=0, OPEN=1, CLOSING=2, CLOSED=3
+          if (readyState === WebSocket.CLOSED) {
+            // WebSocket is closed - this indicates an error if auth is successful
+            if (!websocketError) {
+              console.log('ZerodhaAuth: Auth successful but WebSocket is CLOSED, setting error state');
+            }
+            setWebsocketError(true);
+          } else if (readyState === WebSocket.OPEN) {
+            // WebSocket is open, clear error
+            if (websocketError) {
+              console.log('ZerodhaAuth: WebSocket is now OPEN, clearing error state');
+            }
+            setWebsocketError(false);
+          }
+          // CONNECTING and CLOSING states are transient, don't change error state
+        } else if (!isWsConnected) {
+          // No websocket instance exists and not connected - if auth is successful, set error
+          // This handles the case where websocket was never created or was cleaned up
+          if (!websocketError) {
+            console.log('ZerodhaAuth: Auth successful but no WebSocket instance, setting error state');
+          }
+          setWebsocketError(true);
+        }
+      } else {
+        // Auth not successful, clear websocket error state
+        if (websocketError) {
+          setWebsocketError(false);
+        }
+      }
+    };
+
+    // Check immediately
+    checkWebsocketState();
+
+    // Register callbacks
+    websocketService.onError(handleWebsocketError);
+    websocketService.onConnected(handleWebsocketConnected);
+    websocketService.onDisconnected(handleWebsocketDisconnected);
+
+    // Periodically check websocket state (in case callbacks miss something)
+    const interval = setInterval(checkWebsocketState, 2000);
+
+    // Cleanup
+    return () => {
+      clearInterval(interval);
+    };
+  }, [websocketError]); // Include websocketError in dependencies to avoid stale closure
 
   // Refresh connection status when account tokens change
   useEffect(() => {
@@ -601,9 +692,9 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
           <div className="zerodha-compact-connected">
             <button
               className="btn-zerodha-compact btn-zerodha-connected"
-              title={`Main Account Connected: ${mainAccountName}`}
+              title={websocketError ? `Main Account Connected: ${mainAccountName} (WebSocket Error)` : `Main Account Connected: ${mainAccountName}`}
             >
-              <span className="status-indicator status-green"></span>
+              <span className={`status-indicator ${websocketError ? 'status-amber' : 'status-green'}`}></span>
               <span className="btn-text">Zerodha Sync</span>
             </button>
             <div className="zerodha-compact-menu">

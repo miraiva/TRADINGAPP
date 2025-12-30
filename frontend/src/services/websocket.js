@@ -148,6 +148,17 @@ class WebSocketService {
       this.ws = null;
     }
     this.reconnectAttempts = 0;
+    this.isConnecting = false;
+  }
+
+  isConnected() {
+    return this.ws && this.ws.readyState === WebSocket.OPEN;
+  }
+
+  hasError() {
+    // Check if websocket exists but is in error state or closed unexpectedly
+    if (!this.ws) return false;
+    return this.ws.readyState === WebSocket.CLOSED && this.reconnectAttempts >= this.maxReconnectAttempts;
   }
 
   sendPing() {

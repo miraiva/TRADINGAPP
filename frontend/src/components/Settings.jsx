@@ -93,6 +93,9 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
   const [demoMode, setDemoMode] = useState(
     localStorage.getItem('demo_mode') === 'true'
   );
+  const [refreshInterval, setRefreshInterval] = useState(
+    localStorage.getItem('dashboard_refresh_interval') || '30' // Default 30 seconds
+  );
   const [showImport, setShowImport] = useState(false);
   const [showImportPayin, setShowImportPayin] = useState(false);
   const [showAccountForm, setShowAccountForm] = useState(false);
@@ -610,6 +613,41 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
                 {dataSource === 'ZERODHA' 
                   ? 'Using Zerodha for market data. Real-time data available with paid plan.'
                   : 'Using RapidAPI as fallback. Free tier has rate limits.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <h3 className="settings-section-title">Dashboard Settings</h3>
+            <p className="settings-section-description">
+              Configure dashboard refresh and display options
+            </p>
+            
+            <div className="form-group">
+              <label htmlFor="refresh-interval">Auto Refresh Interval</label>
+              <select
+                id="refresh-interval"
+                value={refreshInterval}
+                onChange={(e) => {
+                  const newInterval = e.target.value;
+                  setRefreshInterval(newInterval);
+                  localStorage.setItem('dashboard_refresh_interval', newInterval);
+                  // Trigger custom event to notify Dashboard (same-tab update)
+                  window.dispatchEvent(new CustomEvent('dashboardRefreshIntervalChanged'));
+                }}
+                className="form-input form-select"
+              >
+                <option value="5">5 seconds</option>
+                <option value="30">30 seconds</option>
+                <option value="60">1 minute</option>
+                <option value="300">5 minutes</option>
+                <option value="900">15 minutes</option>
+                <option value="1800">30 minutes</option>
+                <option value="3600">1 hour</option>
+                <option value="0">Disabled</option>
+              </select>
+              <p className="form-hint">
+                How often the dashboard should automatically refresh data. Set to "Disabled" to turn off auto-refresh.
               </p>
             </div>
           </div>

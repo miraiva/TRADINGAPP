@@ -45,13 +45,29 @@ app = FastAPI(
 # CORS Configuration
 # In production, replace "*" with your frontend URL
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[frontend_url, "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Check if we're in production (you can set PRODUCTION=true in .env)
+is_production = os.getenv("PRODUCTION", "false").lower() == "true"
+
+if is_production:
+    # Production mode - specific origins only
+    allow_origins = os.getenv("ALLOW_ORIGINS", frontend_url).split(",")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allow_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Development mode - allow all origins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Allow all origins in development
+        allow_credentials=False,  # Cannot use credentials with wildcard origin
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],  # Explicitly allow all methods
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
 
 # Import and register API routes
 from app.api import trades, zerodha, sync, market_data, migration, debug, websocket, reference_data, payin, snapshots

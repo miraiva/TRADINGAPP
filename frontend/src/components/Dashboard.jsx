@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line, LineChart, ComposedChart } from 'recharts';
 import { tradesAPI, payinAPI } from '../services/api';
 import TradesTable from './TradesTable';
@@ -76,7 +76,7 @@ const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, percent
 };
 
 const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
-  const [isTableExpanded, setIsTableExpanded] = useState(false);
+  const [isTableExpanded, setIsTableExpanded] = useState(true); // Always open by default
   const [trades, setTrades] = useState([]);
   const [payins, setPayins] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +89,10 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
   const [selectedIndustry, setSelectedIndustry] = useState(null); // Selected industry from pie chart
 
   // Fetch trades and payins independently so one failure doesn't block the other
-  const fetchData = async () => {
+  // Note: This function ONLY updates trades and payins data - all filter states are preserved
+  // Filters (filter, searchTerm, profitFilter, selectedIndustry, view) are in separate state
+  // variables and are NOT modified by this function
+  const fetchData = useCallback(async () => {
     setLoading(true);
     
     // Fetch trades and payins independently with longer timeout
@@ -111,15 +114,69 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
     ]);
     
     // Extract data from settled promises
+    // IMPORTANT: Only update trades and payins state - all filter states remain unchanged
+    // Filter states (filter, searchTerm, profitFilter, selectedIndustry, view) are preserved
     setTrades(tradesData.status === 'fulfilled' ? (tradesData.value || []) : []);
     setPayins(payinsData.status === 'fulfilled' ? (payinsData.value || []) : []);
     
     setLoading(false);
-  };
+  }, []); // Empty dependency array - fetchData doesn't depend on any props/state
 
   useEffect(() => {
     fetchData();
   }, [refreshKey]);
+
+  // Auto-refresh based on settings
+  const [refreshInterval, setRefreshInterval] = useState(() => {
+    return localStorage.getItem('dashboard_refresh_interval') || '30'; // Default 30 seconds
+  });
+
+  useEffect(() => {
+    const intervalMs = parseInt(refreshInterval, 10) * 1000; // Convert to milliseconds
+    
+    // If interval is 0 or invalid, disable auto-refresh
+    if (!intervalMs || intervalMs <= 0) {
+      console.log('Dashboard: Auto-refresh disabled');
+      return;
+    }
+    
+    console.log(`Dashboard: Auto-refresh enabled with interval of ${refreshInterval} seconds`);
+    const intervalId = setInterval(() => {
+      console.log('Dashboard: Auto-refreshing data (filters will be preserved)...');
+      // fetchData is a stable reference that preserves all filter states
+      fetchData();
+    }, intervalMs);
+    
+    // Cleanup interval on unmount or when interval changes
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [refreshInterval, fetchData]); // Re-run when refreshInterval or fetchData changes
+
+  // Listen for refresh interval changes (from Settings or other tabs)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'dashboard_refresh_interval') {
+        const newInterval = e.newValue || '30';
+        console.log(`Dashboard: Refresh interval changed to ${newInterval} seconds`);
+        setRefreshInterval(newInterval);
+      }
+    };
+    
+    // Also listen for custom events (same-tab updates)
+    const handleCustomStorage = () => {
+      const newInterval = localStorage.getItem('dashboard_refresh_interval') || '30';
+      setRefreshInterval(newInterval);
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('dashboardRefreshIntervalChanged', handleCustomStorage);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('dashboardRefreshIntervalChanged', handleCustomStorage);
+    };
+  }, []);
 
   // Listen for payin changes (add, update, delete)
   useEffect(() => {
@@ -250,10 +307,11 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
 
   // Calculate dashboard metrics
   const metrics = useMemo(() => {
-    // Booked P/L (realized from closed trades)
-    const bookedPL = (filteredTrades || [])
-      .filter(t => t.status === 'CLOSED' && t.profit_loss !== null)
-      .reduce((sum, t) => sum + (t.profit_loss || 0), 0);
+    try {
+      // Booked P/L (realized from closed trades)
+      const bookedPL = (filteredTrades || [])
+        .filter(t => t.status === 'CLOSED' && t.profit_loss !== null)
+        .reduce((sum, t) => sum + (t.profit_loss || 0), 0);
 
     // Float P/L (unrealized from open trades)
     // Calculate dynamically from current_price to reflect real-time WebSocket updates
@@ -295,12 +353,29 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
     // NAV = Total Portfolio / Total Shares (if shares exist, otherwise use Total Portfolio)
     const nav = totalShares > 0 ? totalPortfolio / totalShares : totalPortfolio;
 
-    // Balance = Payin + Booked P/L - Invested Amount (Open Deals)
-    const balance = payin + bookedPL - openPositions;
+    // Calculate total charges (buy_charges + sell_charges, or 0.5% of amount if not available)
+    const totalCharges = (filteredTrades || []).reduce((sum, t) => {
+      // ✅ CHANGE #1: ignore CLOSED trades
+      if (t.status !== 'OPEN') return sum;
+    
+      const buyCharges = t.buy_charges || 0;
+      const sellCharges = t.sell_charges || 0;
+      const charges = buyCharges + sellCharges;
+    
+      if (charges > 0) {
+        return sum + charges;
+      }
+    
+      // ✅ CHANGE #2: estimate only on OPEN buy amount
+      return sum + ((t.buy_amount || 0) * 0.0015);
+    }, 0);
 
-    // Utilisation % = (Invested Amount (Open Deals) / (PAYIN + Booked Profit)) * 100
-    // Available capital = Payin + Booked Profit (only positive booked profit counts as available capital)
-    const availableCapital = payin + Math.max(0, bookedPL);
+    // Balance = Payin + Booked P/L - Invested Amount (Open Deals) - Total Charges
+    const balance = payin + bookedPL - openPositions - totalCharges;
+
+    // Utilisation % = (Invested Amount (Open Deals) / (PAYIN + Booked Profit - Total Charges)) * 100
+    // Available capital = Payin + Booked Profit - Total Charges (only positive booked profit counts as available capital)
+    const availableCapital = payin + Math.max(0, bookedPL) - totalCharges;
     const utilisation = availableCapital > 0 ? (openPositions / availableCapital) * 100 : 0;
 
     // XIRR calculation (proper implementation using cash flow dates)
@@ -320,6 +395,25 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
     // Or equivalently: ((Booked P/L + Float P/L) / Payin) × 100
     const absoluteProfitPercent = payin > 0 ? ((totalPortfolio - payin) / payin) * 100 : 0;
 
+    // Day Change: Sum of day_change from all open trades
+    // day_change is the absolute change in price per share, so we multiply by quantity
+    const dayChangeAmount = (filteredTrades || [])
+      .filter(t => t.status === 'OPEN')
+      .reduce((sum, t) => {
+        // day_change is already the change per share, multiply by quantity to get total change
+        if (t.day_change !== null && t.day_change !== undefined) {
+          return sum + (t.day_change * (t.quantity || 0));
+        } else if (t.day_change_percentage !== null && t.day_change_percentage !== undefined && t.buy_price) {
+          // Calculate from percentage: (day_change_percentage / 100) * buy_price * quantity
+          const priceChange = (t.day_change_percentage / 100) * (t.buy_price || 0);
+          return sum + (priceChange * (t.quantity || 0));
+        }
+        return sum;
+      }, 0);
+
+    // Day Change Percentage: (Day Change Amount / Invested Amount in Open Positions) × 100
+    const dayChangePercent = openPositions > 0 ? (dayChangeAmount / openPositions) * 100 : 0;
+
     return {
       nav,
       bookedPL,
@@ -331,7 +425,27 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
       utilisation,
       xirr,
       absoluteProfitPercent,
+      dayChangeAmount: dayChangeAmount || 0,
+      dayChangePercent: dayChangePercent || 0,
     };
+    } catch (error) {
+      console.error('Error calculating dashboard metrics:', error);
+      // Return default values on error
+      return {
+        nav: 0,
+        bookedPL: 0,
+        floatPL: 0,
+        openPositions: 0,
+        totalPortfolio: 0,
+        payin: 0,
+        balance: 0,
+        utilisation: 0,
+        xirr: 0,
+        absoluteProfitPercent: 0,
+        dayChangeAmount: 0,
+        dayChangePercent: 0,
+      };
+    }
   }, [filteredTrades, filteredPayins]);
 
   // Calculate industry allocation for pie chart
@@ -490,6 +604,18 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
     );
   }
 
+  // Safety check: ensure metrics exists
+  if (!metrics) {
+    return (
+      <div className="dashboard-container">
+        <div className="loading-state">
+          <div className="spinner"></div>
+          <p>Calculating metrics...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-container">
       {/* Header Metrics */}
@@ -627,6 +753,11 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
             <div className="card-label">TOTAL PORTFOLIO</div>
             <div className={`card-value ${metrics.totalPortfolio >= 0 ? 'positive' : 'negative'}`}>
               {formatCurrency(metrics.totalPortfolio)}
+              {metrics && (metrics.dayChangeAmount !== undefined || metrics.dayChangePercent !== undefined) && (
+                <span className={`day-change-indicator ${(metrics.dayChangeAmount || 0) >= 0 ? 'positive' : 'negative'}`}>
+                  ({formatCurrency(metrics.dayChangeAmount || 0)} / {formatNumber(metrics.dayChangePercent || 0)}%)
+                </span>
+              )}
             </div>
           </div>
         </div>

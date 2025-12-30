@@ -624,6 +624,34 @@
   border-color: #059669;
 }
 
+.action-card-edit {
+  border-color: #dbeafe;
+  color: #2563eb;
+}
+
+.action-card-edit .action-card-icon {
+  background: #dbeafe;
+}
+
+.action-card-edit:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+}
+
+.action-card-delete {
+  border-color: #fee2e2;
+  color: #dc2626;
+}
+
+.action-card-delete .action-card-icon {
+  background: #fee2e2;
+}
+
+.action-card-delete:hover {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
 .action-card-ai {
   border-color: #ede9fe;
   color: #7c3aed;

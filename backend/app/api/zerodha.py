@@ -29,6 +29,7 @@ class PlaceOrderRequest(BaseModel):
     product: str = "CNC"
     price: Optional[float] = None
     validity: str = "DAY"
+    variety: str = "regular"
 
 
 class ApiKeyRequest(BaseModel):
@@ -282,7 +283,8 @@ async def place_order(request: PlaceOrderRequest):
             order_type=request.order_type,
             product=request.product,
             price=request.price,
-            validity=request.validity
+            validity=request.validity,
+            variety=request.variety
         )
         return result
     except Exception as e:

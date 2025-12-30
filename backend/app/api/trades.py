@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/trades", tags=["trades"])
 
 # Constants for order status checking
-ORDER_STATUS_MAX_RETRIES = 3
-ORDER_STATUS_RETRY_DELAY_SECONDS = 1
+ORDER_STATUS_MAX_RETRIES = 5  # Increased retries
+ORDER_STATUS_RETRY_DELAY_SECONDS = 2  # Increased delay to 2 seconds
 
 
 # Pydantic models for request/response
@@ -52,6 +52,18 @@ class BuyTradeRequest(BaseModel):
     access_token: Optional[str] = None
     exchange: Optional[str] = "NSE"
     order_type: Optional[str] = "MARKET"
+    zerodha_user_id: Optional[str] = None
+
+
+class UpdateTradeRequest(BaseModel):
+    """Request model for updating an existing trade"""
+    symbol: Optional[str] = Field(None, min_length=1, max_length=50)
+    buy_date: Optional[date] = None
+    buy_price: Optional[float] = Field(None, gt=0)
+    quantity: Optional[int] = Field(None, gt=0)
+    buy_charges: Optional[float] = Field(None, ge=0)
+    industry: Optional[str] = None
+    trader: Optional[str] = None
     zerodha_user_id: Optional[str] = None
 
 
@@ -126,7 +138,17 @@ async def buy_trade(
     # Execute via Zerodha API if requested
     if trade_data.execute_via_api and trade_data.access_token:
         try:
-            from app.services.zerodha_service import place_order, get_order_status
+            from app.services.zerodha_service import place_order, get_order_status, get_api_key_for_user
+            
+            # Get API key for the user to ensure correct API key is used
+            api_key, _ = get_api_key_for_user(trade_data.zerodha_user_id, db)
+            if not api_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"API key not configured for user {trade_data.zerodha_user_id}. Please configure API key in Settings."
+                )
+            
+            logger.info(f"Attempting to place BUY order via Zerodha API: symbol={trade_data.symbol}, quantity={trade_data.quantity}, order_type={trade_data.order_type}, exchange={trade_data.exchange}, user_id={trade_data.zerodha_user_id}")
             
             order_result: Dict[str, Any] = place_order(
                 access_token=trade_data.access_token,
@@ -135,46 +157,90 @@ async def buy_trade(
                 transaction_type="BUY",
                 quantity=trade_data.quantity,
                 order_type=trade_data.order_type or "MARKET",
-                product="CNC"
+                product="CNC",
+                api_key=api_key,
+                zerodha_user_id=trade_data.zerodha_user_id,
+                db=db
             )
             
             if order_result and order_result.get("order_id"):
                 buy_order_id = order_result["order_id"]
-                logger.info(f"Buy order placed successfully: order_id={buy_order_id}, symbol={trade_data.symbol}")
+                logger.info(f"Buy order placed successfully: order_id={buy_order_id}, symbol={trade_data.symbol}, user_id={trade_data.zerodha_user_id}")
                 
-                # For MARKET orders, fetch the executed price from order status
+                # For MARKET orders, try to fetch the executed price from order status
+                # If this fails or times out, we'll still create the trade with the order_id
+                # The price can be updated later via sync
                 if trade_data.order_type == "MARKET":
-                    executed_price = _fetch_executed_price_from_order(
-                        access_token=trade_data.access_token,
-                        order_id=buy_order_id,
-                        symbol=trade_data.symbol,
-                        exchange=trade_data.exchange or "NSE"
-                    )
-                    
-                    if executed_price:
-                        original_price = trade_data.buy_price
-                        trade_data.buy_price = executed_price
-                        logger.info(f"Executed price fetched from order status: {original_price} -> {trade_data.buy_price}")
-                    else:
-                        # Fallback: use current market price if order status unavailable
-                        logger.warning(f"Could not get executed price from order status for order {buy_order_id}, using market price")
-                        _fetch_fallback_market_price_buy(trade_data, trade_data.symbol, trade_data.exchange or "NSE")
+                    try:
+                        executed_price = _fetch_executed_price_from_order(
+                            access_token=trade_data.access_token,
+                            order_id=buy_order_id,
+                            symbol=trade_data.symbol,
+                            exchange=trade_data.exchange or "NSE",
+                            api_key=api_key,
+                            zerodha_user_id=trade_data.zerodha_user_id,
+                            db=db
+                        )
+                        
+                        if executed_price:
+                            original_price = trade_data.buy_price
+                            trade_data.buy_price = executed_price
+                            logger.info(f"Executed price fetched from order status: {original_price} -> {trade_data.buy_price}")
+                        else:
+                            # Fallback: use current market price if order status unavailable
+                            logger.warning(f"Could not get executed price from order status for order {buy_order_id}, trying market price fallback")
+                            _fetch_fallback_market_price_buy(trade_data, trade_data.symbol, trade_data.exchange or "NSE")
+                    except Exception as price_fetch_err:
+                        # If price fetching fails (timeout, etc.), log but don't fail the trade creation
+                        # The order was placed successfully, we just couldn't get the price immediately
+                        logger.warning(f"Failed to fetch executed price for order {buy_order_id} (order was placed successfully): {price_fetch_err}")
+                        logger.info(f"Trade will be created with order_id {buy_order_id}. Price can be updated later via sync.")
+                        # Try fallback market price
+                        try:
+                            _fetch_fallback_market_price_buy(trade_data, trade_data.symbol, trade_data.exchange or "NSE")
+                        except Exception as fallback_err:
+                            logger.warning(f"Fallback market price fetch also failed: {fallback_err}")
+                            # If user provided a price, use it; otherwise we'll need to set a default
+                            if not trade_data.buy_price:
+                                # Use a placeholder - this should be updated via sync
+                                logger.warning(f"No price available for order {buy_order_id}. Trade will be created with order_id, price should be synced later.")
                 elif order_result.get("average_price"):
                     # For LIMIT orders, use the limit price or average price from order result
                     original_price = trade_data.buy_price
                     trade_data.buy_price = order_result["average_price"]
                     logger.info(f"Using average price from LIMIT order: {original_price} -> {trade_data.buy_price}")
+            else:
+                # Order placement returned no order_id - this is an error
+                error_msg = f"Order placement failed: No order_id returned. Response: {order_result}"
+                logger.error(error_msg)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to place order in Zerodha: {error_msg}"
+                )
+        except HTTPException:
+            # Re-raise HTTP exceptions (they already have proper error messages)
+            raise
         except Exception as e:
-            # Log error but continue with manual entry (graceful degradation)
-            logger.error(f"Zerodha order execution failed for symbol {trade_data.symbol}: {e}", exc_info=True)
-            # Note: We continue with manual entry to allow trades even if API fails
+            # Log error and fail the request - don't create trade if API execution fails
+            error_msg = str(e)
+            logger.error(f"Zerodha order execution failed for symbol {trade_data.symbol}, user_id={trade_data.zerodha_user_id}: {error_msg}", exc_info=True)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to execute order in Zerodha: {error_msg}. Please check your Zerodha account or try again."
+            )
     
     # Validate buy_price is provided (either from user or from API execution)
-    if not trade_data.buy_price:
+    # Exception: If we have an order_id but no price, allow it (price will be synced later)
+    if not trade_data.buy_price and not buy_order_id:
         raise HTTPException(
             status_code=400,
             detail="buy_price is required when not executing via API with MARKET order"
         )
+    
+    # If we have an order_id but no price, set a placeholder (will be updated via sync)
+    if buy_order_id and not trade_data.buy_price:
+        logger.warning(f"Order {buy_order_id} placed but price not available. Setting placeholder price of 0.01. Price should be synced from Zerodha.")
+        trade_data.buy_price = 0.01  # Placeholder - will be updated via sync
     
     # Calculate total buy amount
     buy_amount = trade_data.buy_price * trade_data.quantity
@@ -204,6 +270,67 @@ async def buy_trade(
         db.rollback()
         logger.error(f"Failed to create trade: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to create trade in database")
+    
+    return trade.to_dict()
+
+
+@router.put("/{trade_id}", response_model=TradeResponse)
+async def update_trade(
+    trade_id: int,
+    trade_data: UpdateTradeRequest,
+    db: Session = Depends(get_db)
+) -> TradeResponse:
+    """
+    Update an existing trade
+    
+    Args:
+        trade_id: Trade ID to update
+        trade_data: Trade update data
+        db: Database session
+        
+    Returns:
+        TradeResponse: Updated trade data
+        
+    Raises:
+        HTTPException: If trade not found or update fails
+    """
+    trade = db.query(Trade).filter(Trade.id == trade_id).first()
+    
+    if not trade:
+        logger.warning(f"Trade not found: id={trade_id}")
+        raise HTTPException(status_code=404, detail="Trade not found")
+    
+    # Update fields if provided
+    if trade_data.symbol is not None:
+        trade.symbol = trade_data.symbol.upper()
+    if trade_data.buy_date is not None:
+        trade.buy_date = trade_data.buy_date
+    if trade_data.buy_price is not None:
+        trade.buy_price = trade_data.buy_price
+    if trade_data.quantity is not None:
+        trade.quantity = trade_data.quantity
+    if trade_data.industry is not None:
+        trade.industry = trade_data.industry
+    if trade_data.trader is not None:
+        trade.trader = trade_data.trader
+    if trade_data.zerodha_user_id is not None:
+        trade.zerodha_user_id = trade_data.zerodha_user_id
+    
+    # Recalculate buy_amount if buy_price or quantity changed
+    if trade_data.buy_price is not None or trade_data.quantity is not None:
+        trade.buy_amount = trade.buy_price * trade.quantity
+    
+    if trade_data.buy_charges is not None:
+        trade.buy_charges = trade_data.buy_charges
+    
+    try:
+        db.commit()
+        db.refresh(trade)
+        logger.info(f"Trade updated successfully: id={trade.id}, symbol={trade.symbol}")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to update trade: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update trade in database")
     
     return trade.to_dict()
 
@@ -244,7 +371,15 @@ async def sell_trade(
     # Execute via Zerodha API if requested
     if sell_data.execute_via_api and sell_data.access_token:
         try:
-            from app.services.zerodha_service import place_order, get_order_status
+            from app.services.zerodha_service import place_order, get_order_status, get_api_key_for_user
+            
+            # Get API key for the user to ensure correct API key is used
+            api_key, _ = get_api_key_for_user(trade.zerodha_user_id, db)
+            if not api_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"API key not configured for user {trade.zerodha_user_id}. Please configure API key in Settings."
+                )
             
             order_result: Dict[str, Any] = place_order(
                 access_token=sell_data.access_token,
@@ -253,7 +388,10 @@ async def sell_trade(
                 transaction_type="SELL",
                 quantity=trade.quantity,
                 order_type=sell_data.order_type or "MARKET",
-                product="CNC"
+                product="CNC",
+                api_key=api_key,
+                zerodha_user_id=trade.zerodha_user_id,
+                db=db
             )
             
             if order_result and order_result.get("order_id"):
@@ -267,7 +405,10 @@ async def sell_trade(
                         access_token=sell_data.access_token,
                         order_id=sell_order_id,
                         symbol=trade.symbol,
-                        exchange=sell_data.exchange or "NSE"
+                        exchange=sell_data.exchange or "NSE",
+                        api_key=api_key,
+                        zerodha_user_id=trade.zerodha_user_id,
+                        db=db
                     )
                     
                     if executed_price:
@@ -304,6 +445,7 @@ async def sell_trade(
     else:
         sell_amount = sell_data.sell_amount
     
+    
     # Update trade with sell information
     trade.sell_date = sell_data.sell_date
     trade.sell_price = sell_data.sell_price
@@ -332,7 +474,10 @@ def _fetch_executed_price_from_order(
     access_token: str,
     order_id: str,
     symbol: str,
-    exchange: str
+    exchange: str,
+    api_key: Optional[str] = None,
+    zerodha_user_id: Optional[str] = None,
+    db: Optional[Session] = None
 ) -> Optional[float]:
     """
     Fetch executed price from order status by polling.
@@ -358,28 +503,50 @@ def _fetch_executed_price_from_order(
         for attempt in range(ORDER_STATUS_MAX_RETRIES):
             # Wait briefly for order to execute (MARKET orders typically execute within seconds)
             # Note: Using blocking sleep in async context - consider asyncio.sleep() for better performance
-            time.sleep(ORDER_STATUS_RETRY_DELAY_SECONDS)
+            if attempt > 0:  # Don't sleep before first attempt
+                time.sleep(ORDER_STATUS_RETRY_DELAY_SECONDS)
             
-            order_status: Dict[str, Any] = get_order_status(access_token, order_id)
-            
-            if order_status and not order_status.get("error"):
-                # Check for executed price in various response fields (API may return in different formats)
-                average_price = order_status.get("average_price")
-                if average_price and average_price > 0:
-                    return float(average_price)
+            try:
+                order_status: Dict[str, Any] = get_order_status(access_token, order_id, api_key=api_key, zerodha_user_id=zerodha_user_id, db=db)
                 
-                price = order_status.get("price")
-                if price and price > 0:
-                    return float(price)
-                
-                # Check if order is complete - if so, average_price should be available
-                if order_status.get("status") == "COMPLETE":
+                if order_status and not order_status.get("error"):
+                    # Check for executed price in various response fields (API may return in different formats)
+                    average_price = order_status.get("average_price")
                     if average_price and average_price > 0:
+                        logger.info(f"Found executed price {average_price} for order {order_id} on attempt {attempt + 1}")
                         return float(average_price)
+                    
+                    price = order_status.get("price")
+                    if price and price > 0:
+                        logger.info(f"Found price {price} for order {order_id} on attempt {attempt + 1}")
+                        return float(price)
+                    
+                    # Check order status
+                    order_status_value = order_status.get("status")
+                    logger.debug(f"Order {order_id} status: {order_status_value}, attempt {attempt + 1}/{ORDER_STATUS_MAX_RETRIES}")
+                    
+                    # Check if order is complete - if so, average_price should be available
+                    if order_status_value == "COMPLETE":
+                        if average_price and average_price > 0:
+                            logger.info(f"Order {order_id} is COMPLETE with average_price {average_price}")
+                            return float(average_price)
+                    elif order_status_value in ["REJECTED", "CANCELLED"]:
+                        # Order was rejected or cancelled, no point in retrying
+                        logger.warning(f"Order {order_id} status is {order_status_value}, stopping price fetch")
+                        return None
+            except Exception as get_status_err:
+                # Log but continue retrying
+                logger.warning(f"Error getting order status for order {order_id} on attempt {attempt + 1}: {get_status_err}")
+                if attempt == ORDER_STATUS_MAX_RETRIES - 1:
+                    # Last attempt failed, give up
+                    logger.warning(f"All {ORDER_STATUS_MAX_RETRIES} attempts failed for order {order_id}")
+                    return None
+                continue
         
+        logger.warning(f"Could not fetch executed price for order {order_id} after {ORDER_STATUS_MAX_RETRIES} attempts")
         return None
     except Exception as status_err:
-        logger.warning(f"Error fetching order status for order {order_id}: {status_err}")
+        logger.warning(f"Error fetching order status for order {order_id}: {status_err}", exc_info=True)
         return None
 
 

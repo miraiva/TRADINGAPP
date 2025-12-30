@@ -128,8 +128,48 @@ const PayinModal = ({ onClose, onPayinComplete, inSlider = false }) => {
       }
       onClose();
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to create payin');
       console.error('Error creating payin:', err);
+      
+      // Handle different error formats
+      let errorMessage = 'Failed to create payin';
+      
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        
+        // Handle Pydantic validation errors (array of error objects)
+        if (Array.isArray(errorData.detail)) {
+          const errorMessages = errorData.detail.map(e => {
+            if (typeof e === 'string') return e;
+            if (typeof e === 'object' && e.msg) {
+              const field = Array.isArray(e.loc) && e.loc.length > 1 ? e.loc[e.loc.length - 1] : 'field';
+              return `${field}: ${e.msg}`;
+            }
+            return JSON.stringify(e);
+          });
+          errorMessage = errorMessages.join(', ');
+        }
+        // Handle single detail string
+        else if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        }
+        // Handle error object with message
+        else if (errorData.detail && typeof errorData.detail === 'object' && errorData.detail.msg) {
+          errorMessage = errorData.detail.msg;
+        }
+        // Handle other error formats
+        else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+        else if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        }
+      }
+      // Handle error message directly
+      else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

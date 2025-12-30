@@ -21,7 +21,7 @@ const dashboardApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 second timeout for dashboard data
+  timeout: 60000, // 60 second timeout for dashboard data (increased for large datasets)
 });
 
 // Helper functions for multi-account token management
@@ -97,6 +97,12 @@ export const tradesAPI = {
     return response.data;
   },
 
+  // Update a trade
+  updateTrade: async (tradeId, tradeData) => {
+    const response = await api.put(`/api/trades/${tradeId}`, tradeData);
+    return response.data;
+  },
+
   // Delete a trade
   deleteTrade: async (tradeId) => {
     await api.delete(`/api/trades/${tradeId}`);
@@ -118,13 +124,15 @@ export const tradesAPI = {
   },
 
   // Update prices for all open trades
-  updatePrices: async (source = 'ZERODHA') => {
+  updatePrices: async (source = 'ZERODHA', useLongTimeout = false) => {
     // Always use market data account token (paid account) for price updates
     const accessToken = getMarketDataToken();
     if (!accessToken) {
       throw new Error('Market data account token not available. Please connect your main account (UU6974).');
     }
-    const response = await api.post(`/api/trades/update-prices?source=${source}&access_token=${accessToken}`);
+    // Use dashboardApi for longer timeout (30 seconds) when requested
+    const instance = useLongTimeout ? dashboardApi : api;
+    const response = await instance.post(`/api/trades/update-prices?source=${source}&access_token=${accessToken}`);
     return response.data;
   },
 };
@@ -200,6 +208,15 @@ export const zerodhaAPI = {
     return response.data;
   },
 };
+
+// Reference Data API - Use longer timeout for reference data operations (60 seconds)
+const referenceDataApi = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 60000, // 60 second timeout for reference data operations
+});
 
 // Sync API - Use longer timeout for sync operations (60 seconds)
 const syncApi = axios.create({
@@ -379,9 +396,9 @@ export const referenceDataAPI = {
     return response.data;
   },
   populate: async (forceRefresh = false) => {
-    const response = await api.post('/api/reference-data/populate', null, {
-      params: { force_refresh: forceRefresh }
-    });
+    // Use POST with query params in URL to avoid CORS preflight issues
+    // Use referenceDataApi with longer timeout for this potentially long-running operation
+    const response = await referenceDataApi.post(`/api/reference-data/populate?force_refresh=${forceRefresh}`, null);
     return response.data;
   },
   refreshCompanyNames: async (accessToken = null) => {
