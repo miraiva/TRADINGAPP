@@ -1,0 +1,339 @@
+.snapshots-table-container {
+  width: 100%;
+  margin-top: 0;
+}
+
+.snapshots-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.snapshots-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.snapshots-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+  gap: 1.5rem;
+  flex-wrap: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.snapshots-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.snapshots-header-info {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex: 1;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.snapshots-search {
+  flex: 0 1 auto;
+  min-width: 200px;
+  max-width: 400px;
+}
+
+.snapshots-create-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.snapshots-create-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #3b82f6;
+  background: #3b82f6;
+  color: white;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.snapshots-create-btn:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+.snapshots-create-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.snapshots-create-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.snapshots-strategy-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 1000;
+  min-width: 150px;
+  overflow: hidden;
+}
+
+.snapshots-strategy-option {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #374151;
+  transition: all 0.15s ease;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.snapshots-strategy-option:last-child {
+  border-bottom: none;
+}
+
+.snapshots-strategy-option:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.snapshots-strategy-option.active {
+  background: #eff6ff;
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.snapshots-close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.5rem;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  line-height: 1;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.snapshots-close-btn:hover {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.snapshots-search .search-input {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.snapshots-search .search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.snapshots-loading,
+.snapshots-error,
+.snapshots-empty {
+  text-align: center;
+  padding: 2rem;
+  color: #6b7280;
+}
+
+.snapshots-error {
+  color: #dc2626;
+}
+
+.btn-retry {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.btn-retry:hover {
+  background-color: #2563eb;
+}
+
+.snapshots-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: white;
+}
+
+.snapshots-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.snapshots-table thead {
+  background-color: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.snapshots-table th {
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.snapshots-table th.numeric-header {
+  text-align: right !important;
+}
+
+.snapshots-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.snapshots-table th.sortable:hover {
+  background-color: #f3f4f6;
+}
+
+.snapshots-table th.sortable .sort-icon {
+  display: inline-block;
+  margin-left: 0.25rem;
+  font-size: 0.7rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.snapshots-table th.sortable:hover .sort-icon {
+  opacity: 0.7;
+  color: #6b7280;
+}
+
+.snapshots-table th.sortable[data-sort-direction="asc"] .sort-icon,
+.snapshots-table th.sortable[data-sort-direction="desc"] .sort-icon {
+  opacity: 1;
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+.snapshots-table tbody tr {
+  border-bottom: 1px solid #e5e7eb;
+  transition: background-color 0.15s;
+}
+
+.snapshots-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.snapshots-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.snapshots-table td {
+  padding: 0.75rem 1rem;
+  color: #1f2937;
+  white-space: nowrap;
+}
+
+.snapshots-table td.negative {
+  color: #dc2626;
+}
+
+.snapshots-table tfoot {
+  background-color: #f9fafb;
+  border-top: 2px solid #e5e7eb;
+}
+
+.snapshots-table tfoot td {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.spinner {
+  border: 3px solid #f3f4f6;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.snapshot-delete-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1.125rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+}
+
+.snapshot-delete-btn:hover:not(:disabled) {
+  background-color: #fee2e2;
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.snapshot-delete-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.snapshot-delete-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+

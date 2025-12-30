@@ -1,0 +1,67 @@
+[
+  {
+    "payin_date": "2022-09-09",
+    "amount": 69149.93,
+    "paid_by": "Ivan M",
+    "nav": 10.0,
+    "number_of_shares": 6914.99,
+    "description": "Initial investment"
+  },
+  {
+    "payin_date": "2022-10-15",
+    "amount": 50000.0,
+    "paid_by": "Shilpa",
+    "nav": 9.0303364,
+    "number_of_shares": 5539.81,
+    "description": "Additional investment"
+  },
+  {
+    "payin_date": "2022-11-20",
+    "amount": -4665.0,
+    "paid_by": "Ivan M",
+    "nav": 8.8568531,
+    "number_of_shares": -534.81,
+    "description": "Payout"
+  },
+  {
+    "payin_date": "2023-01-10",
+    "amount": 25000.0,
+    "paid_by": "Ivan M",
+    "nav": 9.5,
+    "number_of_shares": 2631.58
+  },
+  {
+    "payin_date": "2023-03-15",
+    "amount": 30000.0,
+    "paid_by": "Shilpa",
+    "nav": 10.2,
+    "number_of_shares": 2941.18,
+    "description": "Monthly contribution"
+  },
+  {
+    "payin_date": "2023-05-20",
+    "amount": 40000.0,
+    "paid_by": "Ivan M",
+    "nav": 10.5,
+    "number_of_shares": 3809.52,
+    "description": "Quarterly investment"
+  },
+  {
+    "payin_date": "2023-08-10",
+    "amount": -10000.0,
+    "paid_by": "Shilpa",
+    "nav": 11.0,
+    "number_of_shares": -909.09,
+    "description": "Partial withdrawal"
+  },
+  {
+    "payin_date": "2023-12-01",
+    "amount": 50000.0,
+    "paid_by": "Ivan M",
+    "nav": 12.0,
+    "number_of_shares": 4166.67,
+    "description": "Year-end investment"
+  }
+]
+
+

@@ -1,0 +1,9 @@
+[
+  {
+    "payin_date": "2020-12-02",
+    "amount": 1952713,
+    "zerodha_user_id": "UU6974",
+    "description": "Missing payin entry - added to fix OVERALL calculation"
+  }
+]
+
