@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { tradesAPI, marketDataAPI, referenceDataAPI } from '../services/api';
+import { tradesAPI, marketDataAPI, referenceDataAPI, aiAssistantAPI } from '../services/api';
 import './DecisionAssistant.css';
 
 const DecisionAssistant = ({ onClose, inSlider = false }) => {
@@ -26,6 +26,20 @@ const DecisionAssistant = ({ onClose, inSlider = false }) => {
   const [loadingCompareStocks, setLoadingCompareStocks] = useState(false);
   const [loadingComparePrice, setLoadingComparePrice] = useState(false);
   const [compareSearchTimeout, setCompareSearchTimeout] = useState(null);
+
+  // AI mode state
+  const [aiModeEnabled, setAiModeEnabled] = useState(false);
+  const [aiModel, setAiModel] = useState('chatgpt-mini');
+  const [aiIndicators, setAiIndicators] = useState({
+    volume: false,
+    awayFrom52WeekHigh: false,
+    epsGrowth: false,
+    netProfitGrowth: false,
+    peVsIndustry: false,
+    marketCap: false
+  });
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
 
   // Fetch open trades only when component is actually opened (inSlider means it's visible)
   useEffect(() => {
@@ -158,6 +172,8 @@ const DecisionAssistant = ({ onClose, inSlider = false }) => {
     setSelectedDeals([]);
     setTargetPrice('');
     setTargetProbability(100);
+    setCompareStocks([]); // Clear comparison stocks when symbol changes
+    setAiError(null); // Clear AI error
   };
   
   // Filter symbols based on search input
@@ -296,6 +312,102 @@ const DecisionAssistant = ({ onClose, inSlider = false }) => {
   // Remove compare stock
   const handleRemoveCompareStock = (index) => {
     setCompareStocks(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Handle AI indicator toggle
+  const handleIndicatorToggle = (indicator) => {
+    setAiIndicators(prev => ({
+      ...prev,
+      [indicator]: !prev[indicator]
+    }));
+  };
+
+  // Handle AI comparison call
+  const handleAIGenerate = async () => {
+    if (!selectedSymbol || selectedDeals.length === 0 || !targetPrice) {
+      setAiError('Please select a stock, deals, and enter target price first');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError(null);
+
+    try {
+      // Get current price for the selected symbol
+      const selectedDealsData = dealsForSymbol.filter(d => selectedDeals.includes(d.id));
+      const totalQuantity = selectedDealsData.reduce((sum, deal) => sum + (deal.quantity || 0), 0);
+      const currentAmount = selectedDealsData.reduce((sum, deal) => {
+        const currentPrice = deal.current_price || deal.buy_price || 0;
+        return sum + (currentPrice * (deal.quantity || 0));
+      }, 0);
+      const currentPrice = currentAmount / totalQuantity;
+
+      // Build indicators array
+      const indicators = [];
+      if (aiIndicators.volume) indicators.push('Volume');
+      if (aiIndicators.awayFrom52WeekHigh) indicators.push('% away from 52-week high');
+      if (aiIndicators.epsGrowth) indicators.push('EPS growth');
+      if (aiIndicators.netProfitGrowth) indicators.push('Net profit growth');
+      if (aiIndicators.peVsIndustry) indicators.push('PE vs industry');
+      if (aiIndicators.marketCap) indicators.push('Market cap');
+
+      // Call AI API
+      const response = await aiAssistantAPI.getComparison(
+        selectedSymbol,
+        currentPrice,
+        aiModel,
+        indicators
+      );
+
+      // Fetch current prices for AI-suggested stocks and populate compareStocks
+      const newCompareStocks = [];
+      for (const stock of response.stocks) {
+        try {
+          const dataSource = localStorage.getItem('market_data_source') || 'ZERODHA';
+          let priceResponse = null;
+          
+          // Try NSE first
+          try {
+            priceResponse = await marketDataAPI.getPrice(stock.symbol, 'NSE', dataSource);
+          } catch (err) {
+            // If NSE fails, try BSE
+            try {
+              priceResponse = await marketDataAPI.getPrice(stock.symbol, 'BSE', dataSource);
+            } catch (bseErr) {
+              console.warn(`Failed to fetch price for ${stock.symbol}:`, bseErr);
+            }
+          }
+
+          const currentPrice = priceResponse && priceResponse.success && priceResponse.data
+            ? priceResponse.data.current_price
+            : null;
+
+          newCompareStocks.push({
+            symbol: stock.symbol,
+            targetPrice: stock.targetPrice.toString(),
+            probability: stock.probability,
+            currentPrice: currentPrice
+          });
+        } catch (err) {
+          console.warn(`Error fetching price for ${stock.symbol}:`, err);
+          // Still add the stock, but without current price
+          newCompareStocks.push({
+            symbol: stock.symbol,
+            targetPrice: stock.targetPrice.toString(),
+            probability: stock.probability,
+            currentPrice: null
+          });
+        }
+      }
+
+      // Replace existing compare stocks with AI suggestions
+      setCompareStocks(newCompareStocks);
+    } catch (err) {
+      console.error('Error generating AI comparison:', err);
+      setAiError(err.response?.data?.detail || err.message || 'Failed to generate AI comparison');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   // Calculate profits
@@ -571,6 +683,120 @@ const DecisionAssistant = ({ onClose, inSlider = false }) => {
                     max="100"
                   />
                 </div>
+              </div>
+
+              {/* AI Mode Toggle */}
+              <div className="ai-mode-section" style={{ marginTop: '1.5rem', padding: '1rem', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={aiModeEnabled}
+                      onChange={(e) => {
+                        setAiModeEnabled(e.target.checked);
+                        setAiError(null); // Clear error when toggling
+                      }}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    <span>🤖 AI-Assisted Mode</span>
+                  </label>
+                </div>
+
+                {aiModeEnabled && (
+                  <div className="ai-mode-content" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {/* Model Selection */}
+                    <div className="form-group">
+                      <label>AI Model</label>
+                      <select
+                        value={aiModel}
+                        onChange={(e) => setAiModel(e.target.value)}
+                        className="form-select"
+                      >
+                        <option value="chatgpt-mini">ChatGPT Mini (Default)</option>
+                        <option value="chatgpt">ChatGPT</option>
+                        <option value="deepseek">DeepSeek</option>
+                      </select>
+                    </div>
+
+                    {/* Indicators */}
+                    <div className="form-group">
+                      <label>Financial Indicators (Optional)</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={aiIndicators.volume}
+                            onChange={() => handleIndicatorToggle('volume')}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <span>Volume</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={aiIndicators.awayFrom52WeekHigh}
+                            onChange={() => handleIndicatorToggle('awayFrom52WeekHigh')}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <span>% away from 52-week high</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={aiIndicators.epsGrowth}
+                            onChange={() => handleIndicatorToggle('epsGrowth')}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <span>EPS growth</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={aiIndicators.netProfitGrowth}
+                            onChange={() => handleIndicatorToggle('netProfitGrowth')}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <span>Net profit growth</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={aiIndicators.peVsIndustry}
+                            onChange={() => handleIndicatorToggle('peVsIndustry')}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <span>PE vs industry</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={aiIndicators.marketCap}
+                            onChange={() => handleIndicatorToggle('marketCap')}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <span>Market cap</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Generate Button */}
+                    <button
+                      type="button"
+                      className="btn-confirm"
+                      onClick={handleAIGenerate}
+                      disabled={aiLoading || !targetPrice}
+                      style={{ width: '100%', marginTop: '0.5rem' }}
+                    >
+                      {aiLoading ? 'Generating...' : '🤖 Generate AI Comparison'}
+                    </button>
+
+                    {aiError && (
+                      <div style={{ padding: '0.75rem', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '6px', color: '#dc2626', fontSize: '0.875rem' }}>
+                        {aiError}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}

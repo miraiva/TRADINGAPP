@@ -9,3 +9,4 @@ from app.models.snapshot_symbol_price import SnapshotSymbolPrice
 __all__ = ["Trade", "TradeStatus", "StockReference", "Payin", "PortfolioSnapshot", "ZerodhaApiKey", "SnapshotSymbolPrice"]
 
 
+

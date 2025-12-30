@@ -240,3 +240,146 @@ Please review and validate:
 - [ ] Are the technical considerations appropriate?
 - [ ] Should any epics be split or merged?
 
+
+
+Review comments/ Critical issues to be fixed
+
+# Trading App – Production Readiness & Security Review
+
+This document captures a **formal production-readiness review** of the Trading App.
+It is intended as a **living reference** while hardening the system for real users.
+
+---
+
+## 🔴 CRITICAL ISSUES (Must Fix Before Production)
+
+### 1. Secrets Committed to Repository
+**Issue**
+- Real Zerodha API credentials were found inside `backend/.env`.
+- This is a severe security risk (credential leakage, account compromise).
+
+**Actions**
+- Immediately rotate all exposed Zerodha credentials.
+- Remove `.env` from source control and git history.
+- Keep only `.env.example` with placeholder values.
+- Inject secrets at runtime via:
+  - Environment variables
+  - Docker secrets / cloud secret manager
+
+**Rule**
+> No real secrets should ever exist in git, ZIP artifacts, or deployment bundles.
+
+---
+
+### 2. No Authentication or Authorization
+**Issue**
+- API endpoints are callable without authentication.
+- `zerodha_user_id` is accepted directly from the client.
+- Any caller could read, modify, or import trades.
+
+**Actions**
+- Introduce authentication (JWT or session-based).
+- Derive user identity server-side from auth context.
+- Never trust `user_id` or `zerodha_user_id` from request payloads.
+- Enforce ownership checks on every data-access route.
+
+---
+
+### 3. Debug Endpoints Exposed in Production
+**Issue**
+- `/api/debug/*` routes are mounted unconditionally.
+- Sensitive tokens are accepted via query parameters.
+
+**Actions**
+- Remove debug routes entirely in production.
+- Never pass tokens via query params.
+- If debugging is required:
+  - Enable only on localhost
+  - Protect behind admin-only authentication
+
+---
+
+## 🔥 HIGH-RISK ISSUES
+
+### 4. WebSocket Authentication Is Unsafe
+**Issue**
+- WebSocket connections accept access tokens and user IDs in messages.
+- Tokens can be replayed or spoofed.
+- No subscription or rate limits.
+
+**Actions**
+- Authenticate WebSocket during the handshake.
+- Bind each socket connection to a server-side user identity.
+- Enforce:
+  - Max symbols per connection
+  - Message rate limits
+  - Subscription validation
+
+---
+
+### 5. Secrets Stored in Database in Plaintext
+**Issue**
+- `api_secret` is stored as plaintext in the database.
+- Masking responses does not protect data at rest.
+
+**Actions**
+- Prefer not storing secrets at all if possible.
+- If unavoidable:
+  - Encrypt secrets at rest (KMS / Vault / libsodium).
+  - Restrict DB access.
+  - Never log decrypted secrets.
+
+---
+
+### 6. Background Scheduler Runs Inside API Process
+**Issue**
+- APScheduler runs inside the FastAPI app.
+- Multiple workers or restarts can cause duplicate jobs.
+
+**Actions**
+- Move scheduled tasks to:
+  - Dedicated worker process (Celery / RQ)
+  - External cron or Kubernetes CronJob
+- Ensure jobs are idempotent.
+
+---
+
+## ⚠️ MEDIUM-RISK ISSUES
+
+### 7. Repository Hygiene Problems
+**Issue**
+The following should never be committed or shipped:
+- `backend/venv/`
+- `frontend/node_modules/`
+- `backend/trading_app.db`
+- `.git/` directory inside artifacts
+
+**Actions**
+- Add strict `.gitignore`.
+- Build dependencies during CI/CD.
+- Use migrations instead of committing databases.
+
+---
+
+### 8. File Upload Endpoint Needs Hardening
+**Issue**
+- No strict upload size limits.
+- No MIME-type or extension validation.
+- Potential memory pressure from large files.
+
+**Actions**
+- Enforce maximum upload size at:
+  - Uvicorn / reverse proxy
+  - Application level
+- Validate content type and file extension.
+- Limit number of rows processed.
+
+---
+
+### 9. Environment Configuration Is Fragile
+**Issue**
+- Multiple environment flags (`PRODUCTION`, `ENVIRONMENT`) may conflict.
+
+**Actions**
+- Standardize on a single variable:
+

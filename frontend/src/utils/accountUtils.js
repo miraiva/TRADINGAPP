@@ -106,3 +106,24 @@ export const setCurrentView = (view) => {
   window.dispatchEvent(new CustomEvent('viewChanged', { detail: view }));
 };
 
+// Get account tokens from localStorage
+const getAccountTokens = () => {
+  try {
+    const tokensJson = localStorage.getItem('zerodha_account_tokens');
+    return tokensJson ? JSON.parse(tokensJson) : {};
+  } catch {
+    return {};
+  }
+};
+
+// Save account token to localStorage
+export const saveAccountToken = (userId, accessToken, userName) => {
+  const tokens = getAccountTokens();
+  tokens[userId] = {
+    access_token: accessToken,
+    user_name: userName,
+    connected_at: new Date().toISOString()
+  };
+  localStorage.setItem('zerodha_account_tokens', JSON.stringify(tokens));
+};
+

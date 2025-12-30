@@ -1,0 +1,300 @@
+#!/bin/bash
+
+# Script to create a macOS .app bundle for Trading App
+
+APP_NAME="TradingApp"
+APP_DIR="${APP_NAME}.app"
+CONTENTS_DIR="${APP_DIR}/Contents"
+MACOS_DIR="${CONTENTS_DIR}/MacOS"
+RESOURCES_DIR="${CONTENTS_DIR}/Resources"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+echo "📦 Creating macOS application bundle: ${APP_NAME}.app"
+
+# Remove existing app if it exists
+if [ -d "${APP_DIR}" ]; then
+    echo "Removing existing ${APP_DIR}..."
+    rm -rf "${APP_DIR}"
+fi
+
+# Create app bundle structure
+mkdir -p "${MACOS_DIR}"
+mkdir -p "${RESOURCES_DIR}"
+
+# Create Info.plist
+cat > "${CONTENTS_DIR}/Info.plist" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>TradingApp</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.tradingapp.desktop</string>
+    <key>CFBundleName</key>
+    <string>Trading App</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.13</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>LSUIElement</key>
+    <false/>
+    <key>LSRequiresNativeExecution</key>
+    <true/>
+    <key>LSArchitecturePriority</key>
+    <array>
+        <string>arm64</string>
+        <string>x86_64</string>
+    </array>
+</dict>
+</plist>
+EOF
+
+# Create the main launcher script
+cat > "${MACOS_DIR}/TradingApp" << 'LAUNCHER_EOF'
+#!/bin/bash
+
+# Get the directory where this script is located (inside .app bundle)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_BUNDLE_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Try to find the project directory
+# Method 1: If app is in the project directory (most common case)
+PROJECT_DIR="$(dirname "$APP_BUNDLE_DIR")"
+if [ -f "$PROJECT_DIR/start_app.sh" ] && [ -d "$PROJECT_DIR/backend" ] && [ -d "$PROJECT_DIR/frontend" ]; then
+    # App is in project directory - perfect!
+    cd "$PROJECT_DIR" || exit 1
+# Method 2: Look for project in the user's Documents folder
+elif [ -d "$HOME/Documents/MyProjects/TradingApp" ]; then
+    PROJECT_DIR="$HOME/Documents/MyProjects/TradingApp"
+    cd "$PROJECT_DIR" || exit 1
+# Method 3: Look in common project locations
+elif [ -d "$HOME/Projects/TradingApp" ]; then
+    PROJECT_DIR="$HOME/Projects/TradingApp"
+    cd "$PROJECT_DIR" || exit 1
+elif [ -d "$HOME/Development/TradingApp" ]; then
+    PROJECT_DIR="$HOME/Development/TradingApp"
+    cd "$PROJECT_DIR" || exit 1
+else
+    # Last resort: Ask user to locate the project (only once, then we'll remember it)
+    PROJECT_DIR=$(osascript -e 'tell application "Finder" to return POSIX path of (choose folder with prompt "Select TradingApp project directory (where start_app.sh is located)")' 2>/dev/null)
+    if [ -z "$PROJECT_DIR" ] || [ ! -d "$PROJECT_DIR" ]; then
+        osascript -e 'display dialog "Project directory not found. Please place TradingApp.app in your project folder, or select the project directory when prompted." buttons {"OK"} default button "OK" with icon stop'
+        exit 1
+    fi
+    # Save the path for next time (store in app bundle)
+    echo "$PROJECT_DIR" > "$APP_BUNDLE_DIR/Contents/Resources/project_path.txt"
+    cd "$PROJECT_DIR" || exit 1
+fi
+
+# If we have a saved path, use it (user moved the app but we remember where project is)
+if [ -f "$APP_BUNDLE_DIR/Contents/Resources/project_path.txt" ]; then
+    SAVED_PATH=$(cat "$APP_BUNDLE_DIR/Contents/Resources/project_path.txt" 2>/dev/null)
+    if [ -d "$SAVED_PATH" ] && [ -f "$SAVED_PATH/start_app.sh" ]; then
+        PROJECT_DIR="$SAVED_PATH"
+        cd "$PROJECT_DIR" || exit 1
+    fi
+fi
+
+# Function to cleanup on exit
+cleanup() {
+    echo ""
+    echo "🛑 Stopping Trading App..."
+    pkill -f "uvicorn app.main:app" 2>/dev/null
+    pkill -f "vite" 2>/dev/null
+    echo "✅ All services stopped"
+    exit 0
+}
+
+# Set up signal handlers
+trap cleanup SIGINT SIGTERM
+
+# Find Python 3 in common locations
+PYTHON3=""
+for path in "/usr/local/bin/python3" "/opt/homebrew/bin/python3" "/usr/bin/python3" "$(which python3 2>/dev/null)"; do
+    if [ -x "$path" ]; then
+        PYTHON3="$path"
+        break
+    fi
+done
+
+if [ -z "$PYTHON3" ]; then
+    osascript -e 'display dialog "Python 3 is required but not found. Please install Python 3." buttons {"OK"} default button "OK" with icon stop'
+    exit 1
+fi
+
+# Find Node.js in common locations
+NODE=""
+for path in "/usr/local/bin/node" "/opt/homebrew/bin/node" "/usr/bin/node" "$(which node 2>/dev/null)"; do
+    if [ -x "$path" ]; then
+        NODE="$path"
+        break
+    fi
+done
+
+if [ -z "$NODE" ]; then
+    osascript -e 'display dialog "Node.js is required but not found. Please install Node.js from nodejs.org or using Homebrew: brew install node" buttons {"OK"} default button "OK" with icon stop'
+    exit 1
+fi
+
+# Find npm in common locations
+NPM=""
+for path in "/usr/local/bin/npm" "/opt/homebrew/bin/npm" "/usr/bin/npm" "$(which npm 2>/dev/null)"; do
+    if [ -x "$path" ]; then
+        NPM="$path"
+        break
+    fi
+done
+
+if [ -z "$NPM" ]; then
+    osascript -e 'display dialog "npm is required but not found. Please install Node.js (which includes npm)." buttons {"OK"} default button "OK" with icon stop'
+    exit 1
+fi
+
+# Export paths so they're available to child processes
+export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:$PATH"
+
+# Kill any existing instances
+echo "🔄 Stopping existing instances..."
+pkill -f "uvicorn app.main:app" 2>/dev/null
+pkill -f "vite" 2>/dev/null
+sleep 2
+
+# Check if virtual environment exists
+if [ ! -d "backend/venv" ]; then
+    osascript -e 'display dialog "Virtual environment not found. Please run SETUP.sh first to set up the application." buttons {"OK"} default button "OK" with icon stop'
+    exit 1
+fi
+
+# Start Backend - use venv Python directly
+echo "🚀 Starting backend on http://localhost:8000..."
+cd backend
+
+# Use the venv Python directly (more reliable than activating)
+VENV_PYTHON="$PROJECT_DIR/backend/venv/bin/python3"
+if [ ! -x "$VENV_PYTHON" ]; then
+    osascript -e 'display dialog "Virtual environment Python not found at: '"$VENV_PYTHON"'. Please run SETUP.sh first." buttons {"OK"} default button "OK" with icon stop'
+    cleanup
+    exit 1
+fi
+
+# Set environment variables to ensure subprocesses use venv Python
+export PYTHONPATH="$PROJECT_DIR/backend:$PYTHONPATH"
+export VIRTUAL_ENV="$PROJECT_DIR/backend/venv"
+export PATH="$PROJECT_DIR/backend/venv/bin:$PATH"
+# Ensure subprocesses use the venv Python - critical for multiprocessing
+export PYTHON="$VENV_PYTHON"
+# Set multiprocessing to use spawn method which respects PYTHON env var
+export PYTHONUNBUFFERED=1
+# Force Python to use the venv interpreter for subprocesses
+export _PYTHON_SYSCONFIGDATA_NAME="_sysconfigdata__darwin_darwin"
+
+# Activate venv for any scripts that need it
+source venv/bin/activate
+
+# Start uvicorn using our custom start script
+# This script ensures multiprocessing subprocesses use the venv Python
+cd "$PROJECT_DIR/backend"
+
+# Verify venv Python exists and is executable
+if [ ! -x "$VENV_PYTHON" ]; then
+    osascript -e 'display dialog "Virtual environment Python not found or not executable: '"$VENV_PYTHON"'. Please run SETUP.sh first." buttons {"OK"} default button "OK" with icon stop'
+    cleanup
+    exit 1
+fi
+
+# Force native arm64 execution (not Rosetta x86_64)
+# This is critical - the app was running under Rosetta which caused architecture mismatch
+# Use arch -arm64 to force native execution on Apple Silicon
+# Always use arch -arm64 if available (works on both Intel and Apple Silicon)
+if command -v arch >/dev/null 2>&1; then
+    # Force arm64 native execution (works on Apple Silicon, ignored on Intel)
+    arch -arm64 "$VENV_PYTHON" "$PROJECT_DIR/backend/start_server.py" >> /tmp/trading_app_backend.log 2>&1 &
+else
+    # Fallback if arch command not available
+    "$VENV_PYTHON" "$PROJECT_DIR/backend/start_server.py" >> /tmp/trading_app_backend.log 2>&1 &
+fi
+BACKEND_PID=$!
+echo "Backend started (PID: $BACKEND_PID)"
+
+# Wait for backend to start
+sleep 3
+
+# Check if backend started successfully
+if ! curl -s http://localhost:8000/health > /dev/null 2>&1; then
+    osascript -e 'display dialog "Backend failed to start. Check /tmp/trading_app_backend.log for details." buttons {"OK"} default button "OK" with icon stop'
+    cleanup
+    exit 1
+fi
+
+# Start Frontend
+echo "🚀 Starting frontend on http://localhost:5173..."
+cd ../frontend
+# Use arch -arm64 to ensure npm/vite run natively (not under Rosetta)
+if command -v arch >/dev/null 2>&1; then
+    arch -arm64 "$NPM" run dev > /tmp/trading_app_frontend.log 2>&1 &
+else
+    "$NPM" run dev > /tmp/trading_app_frontend.log 2>&1 &
+fi
+FRONTEND_PID=$!
+echo "Frontend started (PID: $FRONTEND_PID)"
+
+# Wait for frontend to start
+sleep 5
+
+# Check if frontend started successfully
+if ! curl -s http://localhost:5173 > /dev/null 2>&1; then
+    osascript -e 'display dialog "Frontend failed to start. Check /tmp/trading_app_frontend.log for details." buttons {"OK"} default button "OK" with icon stop'
+    cleanup
+    exit 1
+fi
+
+# Open browser
+echo "🌐 Opening browser..."
+open http://localhost:5173
+
+# Show notification
+osascript -e 'display notification "Trading App is running at http://localhost:5173" with title "Trading App" sound name "Glass"'
+
+# Keep script running and wait for processes
+echo ""
+echo "✅ Trading App is running!"
+echo "📱 Frontend: http://localhost:5173"
+echo "🔧 Backend:  http://localhost:8000"
+echo ""
+echo "Press Ctrl+C to stop the application"
+
+# Wait for processes
+wait $BACKEND_PID $FRONTEND_PID
+
+# Cleanup if processes exit
+cleanup
+LAUNCHER_EOF
+
+# Make the launcher executable
+chmod +x "${MACOS_DIR}/TradingApp"
+
+# Create a simple icon placeholder (optional - you can replace this with a real icon)
+# For now, we'll skip the icon but create the structure
+
+echo "✅ Application bundle created: ${APP_DIR}"
+echo ""
+echo "📱 To use the app:"
+echo "   1. Double-click ${APP_DIR} to launch"
+echo "   2. Or drag it to your Applications folder"
+echo ""
+echo "💡 Note: Make sure you have:"
+echo "   - Python 3 installed"
+echo "   - Node.js installed"
+echo "   - Run SETUP.sh first to set up dependencies"
+echo ""
+echo "🔧 To customize the icon, replace ${RESOURCES_DIR}/AppIcon.icns"
+

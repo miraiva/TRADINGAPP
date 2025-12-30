@@ -70,7 +70,7 @@ else:
     )
 
 # Import and register API routes
-from app.api import trades, zerodha, sync, market_data, migration, debug, websocket, reference_data, payin, snapshots
+from app.api import trades, zerodha, sync, market_data, migration, debug, websocket, reference_data, payin, snapshots, ai_assistant
 app.include_router(trades.router)
 app.include_router(zerodha.router)
 app.include_router(sync.router)
@@ -81,6 +81,7 @@ app.include_router(websocket.router)
 app.include_router(reference_data.router)
 app.include_router(payin.router)
 app.include_router(snapshots.router)
+app.include_router(ai_assistant.router)
 
 # Initialize scheduler for daily snapshots (if available)
 scheduler = None
@@ -214,5 +215,6 @@ async def health_check():
         "database": "connected",  # TODO: Add actual DB check
         "environment": os.getenv("ENVIRONMENT", "development")
     }
+
 
 

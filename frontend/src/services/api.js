@@ -453,5 +453,18 @@ export const snapshotAPI = {
   },
 };
 
+// AI Assistant API
+export const aiAssistantAPI = {
+  getComparison: async (symbolToSell, currentPrice, model = 'chatgpt-mini', indicators = []) => {
+    const response = await api.post('/api/ai-assistant/compare', {
+      symbol_to_sell: symbolToSell,
+      current_price: currentPrice,
+      model: model,
+      indicators: indicators
+    });
+    return response.data;
+  },
+};
+
 export default api;
 
