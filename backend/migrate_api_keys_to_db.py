@@ -137,3 +137,4 @@ if __name__ == "__main__":
         # Read from stdin
         migrate_from_stdin()
 
+

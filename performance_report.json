@@ -1,0 +1,66 @@
+{
+  "timestamp": "2025-12-30T23:15:02.817813",
+  "backend_tests": {
+    "/trades/": {
+      "endpoint": "/trades/",
+      "method": "GET",
+      "requests": 10,
+      "errors": 0,
+      "avg_time_ms": 7.47,
+      "min_time_ms": 5.0,
+      "max_time_ms": 10.06,
+      "median_time_ms": 7.47,
+      "p95_time_ms": 10.06,
+      "avg_response_size_bytes": 69059,
+      "success_rate": 100.0
+    },
+    "/payins/": {
+      "endpoint": "/payins/",
+      "method": "GET",
+      "requests": 10,
+      "errors": 0,
+      "avg_time_ms": 2.51,
+      "min_time_ms": 2.23,
+      "max_time_ms": 2.73,
+      "median_time_ms": 2.54,
+      "p95_time_ms": 2.73,
+      "avg_response_size_bytes": 11019,
+      "success_rate": 100.0
+    },
+    "/snapshots/": {
+      "endpoint": "/snapshots/",
+      "method": "GET",
+      "requests": 10,
+      "errors": 0,
+      "avg_time_ms": 2.42,
+      "min_time_ms": 1.91,
+      "max_time_ms": 3.86,
+      "median_time_ms": 2.25,
+      "p95_time_ms": 3.86,
+      "avg_response_size_bytes": 4489,
+      "success_rate": 100.0
+    }
+  },
+  "summary": {
+    "total_endpoints_tested": 3,
+    "overall_avg_response_time_ms": 4.13,
+    "overall_max_response_time_ms": 7.47,
+    "overall_min_response_time_ms": 2.42
+  },
+  "frontend_bundle": {
+    "total_size_mb": 0.83,
+    "total_size_kb": 854.97,
+    "files": {
+      "index-DFA729rG.css": {
+        "size_bytes": 68882,
+        "size_kb": 67.27,
+        "size_mb": 0.07
+      },
+      "index-T8xUO2-s.js": {
+        "size_bytes": 806603,
+        "size_kb": 787.7,
+        "size_mb": 0.77
+      }
+    }
+  }
+}

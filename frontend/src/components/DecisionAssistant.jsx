@@ -437,25 +437,39 @@ const DecisionAssistant = ({ onClose, inSlider = false }) => {
         quantity: totalQuantity,
         currentPrice: currentAmount / totalQuantity,
         targetPrice: parseFloat(targetPrice),
-        amount: targetAmount,
+        currentAmount: currentAmount, // Current value of shares being sold
+        amount: targetAmount, // Target amount from selling
         profit: sellProfit,
         profitIndexed: sellProfitIndexed,
         probability: targetProbability
       },
-      compare: []
+      compare: [],
+      totalCurrentAmount: currentAmount // Store for display
     };
 
     // Calculate profits for comparison stocks
+    // Distribute the currentAmount equally among all comparison stocks
+    // So total amount of all comparison shares = amount being sold
+    const numValidCompareStocks = compareStocks.filter(
+      stock => stock.symbol && stock.targetPrice && stock.currentPrice
+    ).length;
+    
+    const amountPerCompareStock = numValidCompareStocks > 0 
+      ? currentAmount / numValidCompareStocks 
+      : 0;
+    
     compareStocks.forEach((stock, index) => {
       if (stock.symbol && stock.targetPrice && stock.currentPrice) {
         const currentPriceNum = parseFloat(stock.currentPrice);
         const targetPriceNum = parseFloat(stock.targetPrice);
         const probability = parseFloat(stock.probability) || 100;
         
-        // Calculate quantity that can be bought with current amount at current market price
-        const quantity = currentAmount / currentPriceNum;
-        const compareTargetAmount = targetPriceNum * quantity;
-        const compareProfit = compareTargetAmount - currentAmount;
+        // Each comparison stock gets an equal portion of the currentAmount
+        // Calculate quantity that can be bought with this portion at current market price
+        const quantity = amountPerCompareStock / currentPriceNum;
+        const compareCurrentAmount = amountPerCompareStock; // Investment amount (equal portion)
+        const compareTargetAmount = targetPriceNum * quantity; // Amount at target price
+        const compareProfit = compareTargetAmount - compareCurrentAmount;
         const compareProfitIndexed = compareProfit * (probability / 100);
 
         results.compare.push({
@@ -464,6 +478,7 @@ const DecisionAssistant = ({ onClose, inSlider = false }) => {
           currentPrice: currentPriceNum,
           targetPrice: targetPriceNum,
           amount: compareTargetAmount,
+          currentAmount: compareCurrentAmount, // Investment amount for this stock
           profit: compareProfit,
           profitIndexed: compareProfitIndexed,
           probability: probability
@@ -1035,7 +1050,14 @@ const DecisionAssistant = ({ onClose, inSlider = false }) => {
                     ))}
                   </tr>
                   <tr>
-                    <td className="metric-cell">Amount</td>
+                    <td className="metric-cell">Current Amount</td>
+                    <td className="value-cell sell-value">{formatCurrency(calculations.totalCurrentAmount || calculations.sell.currentAmount)}</td>
+                    {calculations.compare.map((stock, index) => (
+                      <td key={index} className="value-cell compare-value">{formatCurrency(stock.currentAmount || 0)}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="metric-cell">Target Amount</td>
                     <td className="value-cell sell-value">{formatCurrency(calculations.sell.amount)}</td>
                     {calculations.compare.map((stock, index) => (
                       <td key={index} className="value-cell compare-value">{formatCurrency(stock.amount)}</td>

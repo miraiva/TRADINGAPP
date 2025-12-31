@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { payinAPI, tradesAPI } from '../services/api';
+import { getAccountDetails } from '../utils/accountUtils';
 import './BuyModal.css';
 
 const PayinModal = ({ onClose, onPayinComplete, inSlider = false }) => {
@@ -25,48 +26,66 @@ const PayinModal = ({ onClose, onPayinComplete, inSlider = false }) => {
     }
   }, []);
 
-  // Calculate NAV when payin_date or amount changes
+  // Get NAV based on user ID's associated strategy (SWING/LONG_TERM) when payin_date or user ID changes
   useEffect(() => {
-    const calculateNav = async () => {
-      if (!formData.payin_date) return;
+    const getNavForStrategy = async () => {
+      if (!formData.payin_date || !formData.zerodha_user_id) return;
       
       setCalculatingNav(true);
       try {
-        const currentPayinAmount = parseFloat(formData.amount) || 0;
-        const navData = await payinAPI.calculateNav(
-          formData.payin_date,
-          formData.zerodha_user_id || null,
-          currentPayinAmount > 0 ? currentPayinAmount : null
+        // Determine strategy from user ID
+        const accountDetails = getAccountDetails();
+        const userStrategy = accountDetails[formData.zerodha_user_id]?.trading_strategy || 'SWING';
+        
+        // First, try to get NAV from snapshots
+        let navData = await payinAPI.getLatestNavForStrategy(
+          formData.zerodha_user_id,
+          userStrategy
         );
         
-        const nav = navData.nav || 0;
+        let nav = navData?.nav;
         
-        if (nav > 0) {
+        // If no NAV from snapshot, calculate it from payins/trades (like Dashboard does)
+        if (!nav || nav <= 0) {
+          try {
+            const calculatedNav = await payinAPI.calculateNav(
+              formData.payin_date,
+              formData.zerodha_user_id || null,
+              null
+            );
+            // Dashboard formula: NAV = (Payin + Booked P/L + Float P/L) / Total Shares
+            // The calculateNav API now returns NAV calculated using the same formula as Dashboard
+            nav = calculatedNav?.nav;
+          } catch (calcErr) {
+            console.warn('Failed to calculate NAV:', calcErr);
+          }
+        }
+        
+        if (nav && nav > 0) {
           setFormData(prev => ({ ...prev, nav: nav.toFixed(2) }));
           
-          // Calculate number of shares if amount is provided
-          if (currentPayinAmount > 0 && nav > 0) {
+          // Calculate number of shares if amount is already entered
+          const currentPayinAmount = parseFloat(formData.amount);
+          if (currentPayinAmount && currentPayinAmount !== 0 && nav > 0) {
             const shares = currentPayinAmount / nav;
-            setFormData(prev => ({ ...prev, number_of_shares: shares.toFixed(4) }));
-          } else {
-            setFormData(prev => ({ ...prev, number_of_shares: '' }));
+            setFormData(prev => ({ ...prev, number_of_shares: Math.abs(shares).toFixed(4) }));
           }
         } else {
-          setFormData(prev => ({ ...prev, nav: '', number_of_shares: '' }));
+          // No NAV found
+          setFormData(prev => ({ ...prev, nav: '' }));
         }
       } catch (err) {
-        console.warn('Failed to calculate NAV:', err);
-        // Don't show error to user, just log it
-        setFormData(prev => ({ ...prev, nav: '', number_of_shares: '' }));
+        console.warn('Failed to get NAV for strategy:', err);
+        setFormData(prev => ({ ...prev, nav: '' }));
       } finally {
         setCalculatingNav(false);
       }
     };
     
-    if (formData.payin_date) {
-      calculateNav();
+    if (formData.payin_date && formData.zerodha_user_id) {
+      getNavForStrategy();
     }
-  }, [formData.payin_date, formData.zerodha_user_id, formData.amount]);
+  }, [formData.payin_date, formData.zerodha_user_id]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -76,12 +95,14 @@ const PayinModal = ({ onClose, onPayinComplete, inSlider = false }) => {
         [name]: value
       };
       
-      // Recalculate number of shares if amount or NAV changes
+      // Auto-populate number of shares when amount or NAV changes
+      // Formula: Number of shares = Payin Amount / NAV (supports negative amounts for withdrawals)
       if (name === 'amount' || name === 'nav') {
-        const amount = parseFloat(newData.amount) || 0;
-        const nav = parseFloat(newData.nav) || 0;
-        if (amount > 0 && nav > 0) {
-          newData.number_of_shares = (amount / nav).toFixed(4);
+        const amount = parseFloat(newData.amount);
+        const nav = parseFloat(newData.nav);
+        if (amount !== 0 && !isNaN(amount) && nav > 0 && !isNaN(nav)) {
+          // Use absolute value for shares calculation (withdrawals still have positive shares)
+          newData.number_of_shares = Math.abs(amount / nav).toFixed(4);
         } else {
           newData.number_of_shares = '';
         }
@@ -102,18 +123,18 @@ const PayinModal = ({ onClose, onPayinComplete, inSlider = false }) => {
       if (!formData.payin_date) {
         throw new Error('Payin date is required');
       }
-      if (!formData.amount || parseFloat(formData.amount) <= 0) {
-        throw new Error('Amount must be greater than 0');
+      if (!formData.amount || parseFloat(formData.amount) === 0) {
+        throw new Error('Amount cannot be zero (use negative value for withdrawal)');
       }
 
       const payinData = {
         payin_date: formData.payin_date,
         amount: parseFloat(formData.amount),
-        paid_by: formData.paid_by || null,
-        nav: formData.nav ? parseFloat(formData.nav) : null,
-        number_of_shares: formData.number_of_shares ? parseFloat(formData.number_of_shares) : null,
-        description: formData.description || null,
-        zerodha_user_id: formData.zerodha_user_id || null,
+        paid_by: formData.paid_by && formData.paid_by.trim() ? formData.paid_by.trim() : null,
+        nav: formData.nav && formData.nav.trim() ? parseFloat(formData.nav) : null,
+        number_of_shares: formData.number_of_shares && formData.number_of_shares.trim() ? parseFloat(formData.number_of_shares) : null,
+        description: formData.description && formData.description.trim() ? formData.description.trim() : null,
+        zerodha_user_id: formData.zerodha_user_id && formData.zerodha_user_id.trim() ? formData.zerodha_user_id.trim() : null,
       };
 
       await payinAPI.createPayin(payinData);
@@ -214,10 +235,19 @@ const PayinModal = ({ onClose, onPayinComplete, inSlider = false }) => {
                 value={formData.amount}
                 onChange={handleChange}
                 required
-                min="0.01"
                 step="0.01"
-                placeholder="Enter amount"
+                placeholder="Enter amount (negative for withdrawal)"
                 className="form-input"
+                onKeyDown={(e) => {
+                  // Allow negative sign, numbers, decimal point, backspace, delete, arrow keys
+                  if (!/[0-9.\-]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                    e.preventDefault();
+                  }
+                  // Allow negative sign only at the start
+                  if (e.key === '-' && (e.target.selectionStart !== 0 || e.target.value.includes('-'))) {
+                    e.preventDefault();
+                  }
+                }}
               />
             </div>
           </div>
@@ -247,7 +277,6 @@ const PayinModal = ({ onClose, onPayinComplete, inSlider = false }) => {
                 name="nav"
                 value={formData.nav}
                 onChange={handleChange}
-                min="0.01"
                 step="0.01"
                 placeholder="Auto-calculated"
                 className="form-input"

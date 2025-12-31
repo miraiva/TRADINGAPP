@@ -237,10 +237,22 @@ function App() {
       
       <header className="App-header">
         <div className="header-content">
-          <h1>
-            Swing Edge{headerSubtitle ? ` - ${headerSubtitle}` : ''}
-          </h1>
-          <p className="header-tagline">Every trade stands alone</p>
+          <div className="header-logo-title">
+            <img 
+              src="/logo.png" 
+              alt="Swing Edge" 
+              className="header-logo"
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
+            <div>
+              <h1>
+                Swing Edge{headerSubtitle ? ` - ${headerSubtitle}` : ''}
+              </h1>
+              <p className="header-tagline">Every trade stands alone</p>
+            </div>
+          </div>
         </div>
         <div className="header-actions">
           {/* Zerodha connection moved to Settings/ActionSidePanel */}
@@ -268,6 +280,8 @@ function App() {
 }
 
 export default App
+
+
 
 
 

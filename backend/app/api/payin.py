@@ -5,7 +5,7 @@ Payin API endpoints
 from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import date, datetime
 import logging
 import json
@@ -24,11 +24,42 @@ router = APIRouter(prefix="/api/payins", tags=["payin"])
 class PayinRequest(BaseModel):
     payin_date: date
     amount: float
-    paid_by: str = None
-    nav: float = None
-    number_of_shares: float = None
-    description: str = None
-    zerodha_user_id: str = None
+    paid_by: Optional[str] = None
+    nav: Optional[float] = None
+    number_of_shares: Optional[float] = None
+    description: Optional[str] = None
+    zerodha_user_id: Optional[str] = None
+    
+    @field_validator('paid_by', 'zerodha_user_id', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        """Convert empty strings to None"""
+        if v == '' or (isinstance(v, str) and not v.strip()):
+            return None
+        return v
+    
+    @field_validator('nav', 'number_of_shares', mode='before')
+    @classmethod
+    def empty_str_to_none_float(cls, v):
+        """Convert empty strings to None for float fields"""
+        if v == '' or v is None:
+            return None
+        if isinstance(v, str):
+            v = v.strip()
+            if v == '':
+                return None
+        try:
+            return float(v) if v else None
+        except (ValueError, TypeError):
+            return None
+    
+    @field_validator('description', mode='before')
+    @classmethod
+    def empty_str_to_none_description(cls, v):
+        """Convert empty strings to None for description"""
+        if v == '' or (isinstance(v, str) and not v.strip()):
+            return None
+        return v
 
 
 class PayinResponse(BaseModel):
@@ -190,15 +221,23 @@ async def calculate_nav(
                 if pl is not None:
                     float_pl += pl
         
-        # NAV = Total Payin + Booked P/L + Float P/L
-        nav = total_payin + booked_pl + float_pl
+        # Total Portfolio = Payin + Booked P/L + Float P/L
+        total_portfolio = total_payin + booked_pl + float_pl
+        
+        # Calculate total number of shares from payins
+        total_shares = sum(p.number_of_shares or 0 for p in payins)
+        
+        # NAV = Total Portfolio / Total Shares (if shares exist, otherwise use Total Portfolio)
+        nav = total_portfolio / total_shares if total_shares > 0 else total_portfolio
         
         return {
             "nav_date": nav_date.isoformat(),
             "nav": nav,
             "total_payin": total_payin,
             "booked_pl": booked_pl,
-            "float_pl": float_pl
+            "float_pl": float_pl,
+            "total_portfolio": total_portfolio,
+            "total_shares": total_shares
         }
     except Exception as e:
         logger.error(f"Error calculating NAV: {e}", exc_info=True)

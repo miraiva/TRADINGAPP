@@ -310,6 +310,26 @@ export const payinAPI = {
     return response.data;
   },
 
+  // Get latest swing NAV from snapshots
+  getLatestSwingNav: async (zerodhaUserId = null) => {
+    const params = { trading_strategy: 'SWING' };
+    if (zerodhaUserId) {
+      params.zerodha_user_id = zerodhaUserId;
+    }
+    const response = await api.get('/api/snapshots/latest-nav', { params });
+    return response.data;
+  },
+
+  // Get latest NAV from snapshots for a specific user ID and strategy
+  getLatestNavForStrategy: async (zerodhaUserId, tradingStrategy = 'SWING') => {
+    const params = { 
+      trading_strategy: tradingStrategy,
+      zerodha_user_id: zerodhaUserId
+    };
+    const response = await api.get('/api/snapshots/latest-nav', { params });
+    return response.data;
+  },
+
   // Import payins from file
   importPayins: async (file, zerodhaUserId, skipDuplicates = true) => {
     const formData = new FormData();

@@ -41,6 +41,18 @@ body {
   text-align: left;
 }
 
+.header-logo-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-logo {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -147,6 +159,8 @@ body {
     gap: 1.5rem;
   }
 }
+
+
 
 
 

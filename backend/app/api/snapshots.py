@@ -143,6 +143,42 @@ async def delete_snapshot(snapshot_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to delete snapshot: {str(e)}")
 
 
+@router.get("/latest-nav")
+async def get_latest_nav(
+    zerodha_user_id: Optional[str] = Query(None, description="Filter by Zerodha user ID"),
+    trading_strategy: Optional[str] = Query('SWING', description="Trading strategy (default: SWING)"),
+    db: Session = Depends(get_db)
+):
+    """Get the latest NAV from the most recent snapshot for a given strategy"""
+    try:
+        query = db.query(PortfolioSnapshot).filter(
+            PortfolioSnapshot.trading_strategy == trading_strategy
+        )
+        
+        if zerodha_user_id:
+            query = query.filter(PortfolioSnapshot.zerodha_user_id == zerodha_user_id)
+        
+        # Get the most recent snapshot
+        snapshot = query.order_by(PortfolioSnapshot.snapshot_date.desc()).first()
+        
+        if not snapshot or not snapshot.nav:
+            # If no snapshot found, return None
+            return {
+                "nav": None,
+                "snapshot_date": None,
+                "message": f"No {trading_strategy} snapshot found"
+            }
+        
+        return {
+            "nav": snapshot.nav,
+            "snapshot_date": snapshot.snapshot_date.isoformat(),
+            "snapshot_id": snapshot.id
+        }
+    except Exception as e:
+        logger.error(f"Error fetching latest NAV: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch latest NAV: {str(e)}")
+
+
 @router.post("/create-daily")
 async def create_daily_snapshots(db: Session = Depends(get_db)):
     """

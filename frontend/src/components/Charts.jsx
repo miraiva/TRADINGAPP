@@ -14,7 +14,6 @@ const Charts = ({ showHeader = false, onClose = null }) => {
 
   const fetchSnapshots = useCallback(async () => {
     try {
-      setLoading(true);
       setError(null);
 
       // Build query params based on current view
@@ -89,8 +88,26 @@ const Charts = ({ showHeader = false, onClose = null }) => {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchSnapshots(), fetchTrades()]);
-      setLoading(false);
+      setError(null);
+      try {
+        // Add timeout to prevent infinite loading (30 seconds)
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Request timeout: Charts took too long to load')), 30000);
+        });
+        
+        await Promise.race([
+          Promise.all([fetchSnapshots(), fetchTrades()]),
+          timeoutPromise
+        ]);
+      } catch (err) {
+        console.error('Charts: Error loading data:', err);
+        setError(err.message || 'Failed to load chart data');
+        // Still set snapshots and trades to empty arrays on error to prevent infinite loading
+        setSnapshots([]);
+        setTrades([]);
+      } finally {
+        setLoading(false);
+      }
     };
     loadData();
   }, [fetchSnapshots, fetchTrades]);
@@ -99,17 +116,22 @@ const Charts = ({ showHeader = false, onClose = null }) => {
   useEffect(() => {
     const handleViewChange = () => {
       const newView = getCurrentView();
-      setView(newView);
+      if (newView !== view) {
+        setView(newView);
+      }
     };
     window.addEventListener('storage', handleViewChange);
     window.addEventListener('viewChanged', handleViewChange);
-    const interval = setInterval(handleViewChange, 1000);
+    // Check immediately when component mounts
+    handleViewChange();
+    // Poll every 2 seconds to catch view changes
+    const interval = setInterval(handleViewChange, 2000);
     return () => {
       window.removeEventListener('storage', handleViewChange);
       window.removeEventListener('viewChanged', handleViewChange);
       clearInterval(interval);
     };
-  }, []);
+  }, [view]);
 
   // Listen for snapshot creation
   useEffect(() => {
