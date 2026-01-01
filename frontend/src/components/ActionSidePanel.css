@@ -295,18 +295,19 @@
 
   .zerodha-menu {
     right: auto;
-    bottom: 60px;
+    bottom: calc(100% + 0.5rem);
     top: auto;
     left: 50%;
     transform: translateX(-50%);
     min-width: 280px;
     max-width: 90vw;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
   }
 
   .zerodha-menu::before {
     content: '';
     position: absolute;
-    bottom: -6px;
+    top: 100%;
     left: 50%;
     transform: translateX(-50%);
     border: 6px solid transparent;
@@ -329,6 +330,7 @@
   .zerodha-menu {
     min-width: 260px;
     max-width: 95vw;
+    bottom: calc(100% + 0.5rem);
   }
 }
 

@@ -12,7 +12,7 @@ import ActionSidePanel from './components/ActionSidePanel'
 import SliderPanel from './components/SliderPanel'
 import DecisionAssistant from './components/DecisionAssistant'
 import { getDemoMode } from './utils/displayUtils'
-import { getAccountDetails } from './utils/accountUtils'
+import { getAccountDetails, syncAccountDetailsFromDatabase } from './utils/accountUtils'
 import './App.css'
 
 function App() {
@@ -63,6 +63,21 @@ function App() {
       setHeaderSubtitle(userName || '')
     }
   }
+
+  // Sync account details from database on mount
+  useEffect(() => {
+    // Sync account details from database to localStorage
+    syncAccountDetailsFromDatabase().then(synced => {
+      if (synced) {
+        // Force update of header subtitle after sync
+        updateHeaderSubtitle()
+        // Dispatch storage event to notify other components
+        window.dispatchEvent(new Event('storage'))
+      }
+    }).catch(err => {
+      console.warn('Failed to sync account details on mount:', err)
+    })
+  }, [])
 
   // Update header subtitle on mount and when demo mode/account details change
   useEffect(() => {
