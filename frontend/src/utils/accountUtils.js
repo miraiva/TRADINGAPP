@@ -2,7 +2,7 @@
  * Utility functions for account management and filtering
  */
 
-// Get account details from localStorage
+// Get account details from localStorage (synchronous for use in hooks/filters)
 export const getAccountDetails = () => {
   try {
     const accountsJson = localStorage.getItem('account_details');
@@ -10,6 +10,37 @@ export const getAccountDetails = () => {
   } catch {
     return {};
   }
+};
+
+// Sync account details from database to localStorage (call on component mount)
+export const syncAccountDetailsFromDatabase = async () => {
+  try {
+    const { accountAPI } = await import('../services/api');
+    const dbAccounts = await accountAPI.getAllAccountDetails();
+    
+    if (dbAccounts && dbAccounts.length > 0) {
+      // Get current localStorage data to preserve api_key/secret_key
+      const currentDetails = getAccountDetails();
+      
+      // Update localStorage with database data
+      dbAccounts.forEach(acc => {
+        if (!currentDetails[acc.zerodha_user_id]) {
+          currentDetails[acc.zerodha_user_id] = {};
+        }
+        // Update fields from database, but preserve api_key/secret_key if they exist
+        currentDetails[acc.zerodha_user_id].user_name = acc.user_name;
+        currentDetails[acc.zerodha_user_id].account_type = acc.account_type;
+        currentDetails[acc.zerodha_user_id].trading_strategy = acc.trading_strategy;
+      });
+      
+      // Save back to localStorage
+      localStorage.setItem('account_details', JSON.stringify(currentDetails));
+      return true;
+    }
+  } catch (error) {
+    console.warn('Failed to sync account details from database:', error);
+  }
+  return false;
 };
 
 // Get all account IDs by trading strategy

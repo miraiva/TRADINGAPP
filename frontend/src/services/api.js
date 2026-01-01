@@ -492,5 +492,36 @@ export const aiAssistantAPI = {
   },
 };
 
+// Account Details API
+export const accountAPI = {
+  saveAccountDetail: async (zerodhaUserId, userName, accountType, tradingStrategy) => {
+    const response = await api.post('/api/accounts/details', {
+      zerodha_user_id: zerodhaUserId,
+      user_name: userName,
+      account_type: accountType,
+      trading_strategy: tradingStrategy
+    });
+    return response.data;
+  },
+  getAccountDetail: async (zerodhaUserId) => {
+    try {
+      const response = await api.get(`/api/accounts/details/${zerodhaUserId}`);
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return null; // Not found is OK
+      }
+      throw error;
+    }
+  },
+  getAllAccountDetails: async () => {
+    const response = await api.get('/api/accounts/details');
+    return response.data;
+  },
+  deleteAccountDetail: async (zerodhaUserId) => {
+    await api.delete(`/api/accounts/details/${zerodhaUserId}`);
+  },
+};
+
 export default api;
 

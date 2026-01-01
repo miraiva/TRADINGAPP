@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import ImportTrades from './ImportTrades';
 import ImportPayins from './ImportPayins';
-import { zerodhaAPI } from '../services/api';
+import { zerodhaAPI, accountAPI } from '../services/api';
+import { syncAccountDetailsFromDatabase } from '../utils/accountUtils';
 import './Settings.css';
 
 // Helper to get connected accounts (from OAuth tokens)
@@ -118,6 +119,14 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
     if (saved) {
       setDataSource(saved);
     }
+    
+    // Sync account details from database to localStorage on mount
+    syncAccountDetailsFromDatabase().then(synced => {
+      if (synced) {
+        // Force re-render to show updated account details
+        window.dispatchEvent(new Event('storage'));
+      }
+    });
   }, []);
 
   const handleDataSourceChange = (e) => {
@@ -192,6 +201,9 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
     // Try to load from backend first, then fallback to localStorage
     let apiKey = account.api_key || '';
     let secretKey = account.secret_key || '';
+    let userName = account.user_name || '';
+    let accountType = account.account_type || 'TRADING_ONLY';
+    let tradingStrategy = account.trading_strategy || 'SWING';
     
     try {
       const apiKeyData = await zerodhaAPI.getApiKey(account.user_id);
@@ -204,16 +216,27 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
     } catch (error) {
       // API key not configured in database, use localStorage values
       // Reduced logging - configuration fallback is expected behavior
-      // console.log('API key not configured in .env file, using localStorage values if available');
+    }
+    
+    // Try to load account details from database
+    try {
+      const accountDetail = await accountAPI.getAccountDetail(account.user_id);
+      if (accountDetail) {
+        userName = accountDetail.user_name || userName;
+        accountType = accountDetail.account_type || accountType;
+        tradingStrategy = accountDetail.trading_strategy || tradingStrategy;
+      }
+    } catch (error) {
+      // Account details not in database, use values from props/localStorage
     }
     
     setAccountForm({
       user_id: account.user_id,
-      user_name: account.user_name || '',
+      user_name: userName,
       api_key: apiKey,
       secret_key: secretKey,
-      account_type: account.account_type || 'TRADING_ONLY',
-      trading_strategy: account.trading_strategy || 'SWING'
+      account_type: accountType,
+      trading_strategy: tradingStrategy
     });
     setShowAccountForm(true);
   };
@@ -274,6 +297,20 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
       }
     }
 
+    // Save account details (user_name, account_type, trading_strategy) to database
+    try {
+      await accountAPI.saveAccountDetail(
+        accountForm.user_id,
+        accountForm.user_name || null,
+        accountForm.account_type,
+        accountForm.trading_strategy
+      );
+      console.log('Account details saved to database');
+    } catch (error) {
+      console.error('Error saving account details to database:', error);
+      // Continue anyway - localStorage will be saved as fallback
+    }
+
     // Also save to localStorage for backward compatibility
     const details = getAccountDetails();
     details[accountForm.user_id] = {
@@ -303,8 +340,18 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
     });
   };
 
-  const handleDeleteAccount = (userId) => {
+  const handleDeleteAccount = async (userId) => {
     if (window.confirm(`Are you sure you want to delete account ${userId}?`)) {
+      // Delete from database
+      try {
+        await accountAPI.deleteAccountDetail(userId);
+        console.log('Account details deleted from database');
+      } catch (error) {
+        console.error('Error deleting account details from database:', error);
+        // Continue anyway - localStorage will be cleaned up
+      }
+      
+      // Also delete from localStorage
       const details = getAccountDetails();
       delete details[userId];
       saveAccountDetails(details);
