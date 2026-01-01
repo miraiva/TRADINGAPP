@@ -224,11 +224,26 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
   // Filter trades based on selected view
   const filteredTrades = useMemo(() => {
     // Safety check: ensure trades is always an array
-    if (!Array.isArray(trades)) return [];
-    if (!trades || !Array.isArray(trades)) {
-      return [];
+    if (!Array.isArray(trades) || trades.length === 0) return [];
+    
+    // Try filtering by view first
+    let filtered = filterTradesByView(trades, view);
+    
+    // If filtering resulted in empty and we have trades, use fallback
+    if (filtered.length === 0 && trades.length > 0) {
+      // Get all unique user IDs from trades data
+      const uniqueUserIds = [...new Set(trades.map(t => t.zerodha_user_id).filter(Boolean))];
+      if (uniqueUserIds.length > 0) {
+        // Show all trades (no filtering by strategy)
+        filtered = trades.filter(t => t.zerodha_user_id && uniqueUserIds.includes(t.zerodha_user_id));
+        // Log for debugging (only in development)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Dashboard: Using fallback - showing all trades for user IDs:', uniqueUserIds);
+        }
+      }
     }
-    return filterTradesByView(trades, view) || [];
+    
+    return filtered || [];
   }, [trades, view]);
 
   // Filter payins based on selected view
@@ -247,12 +262,27 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
       // Combine and remove duplicates
       accountIds = Array.from(new Set([...swingIds, ...longTermIds]));
       
-      // Debug logging (remove after fixing)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('OVERALL Payins Filter - Swing IDs:', swingIds);
-        console.log('OVERALL Payins Filter - Long Term IDs:', longTermIds);
-        console.log('OVERALL Payins Filter - Combined IDs:', accountIds);
-        console.log('Total payins:', payins.length);
+      // If no accounts found from strategies, use fallback
+      if (accountIds.length === 0) {
+        // Try tokens first
+        try {
+          const tokensJson = localStorage.getItem('zerodha_account_tokens');
+          const tokens = tokensJson ? JSON.parse(tokensJson) : {};
+          accountIds = Object.keys(tokens);
+        } catch {
+          // Continue to next fallback
+        }
+        
+        // If still no accounts, use all user IDs from payins data
+        if (accountIds.length === 0) {
+          const uniqueUserIds = [...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))];
+          if (uniqueUserIds.length > 0) {
+            accountIds = uniqueUserIds;
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Dashboard OVERALL: Using fallback - showing payins for all user IDs:', uniqueUserIds);
+            }
+          }
+        }
       }
     } else {
       // For SWING or LONG_TERM, get accounts for that strategy
@@ -292,11 +322,13 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
     
     const filtered = payins.filter(payin => {
       const payinAccountId = payin.zerodha_user_id;
-      // Exclude payins without account ID - only include payins from classified accounts
+      // Exclude payins without account ID
       if (!payinAccountId) {
         return false;
       }
-      return accountIds.includes(payinAccountId);
+      // Normalize comparison (case-insensitive, trim)
+      const normalizedPayinId = payinAccountId.trim().toUpperCase();
+      return accountIds.some(accountId => accountId.trim().toUpperCase() === normalizedPayinId);
     });
     
     // Debug logging (remove after fixing)
