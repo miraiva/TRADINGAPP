@@ -418,9 +418,9 @@ export const referenceDataAPI = {
     return response.data;
   },
   populate: async (forceRefresh = false) => {
-    // Use POST with query params in URL to avoid CORS preflight issues
-    // Use referenceDataApi with longer timeout for this potentially long-running operation
-    const response = await referenceDataApi.post(`/api/reference-data/populate?force_refresh=${forceRefresh}`, null);
+    // Use GET instead of POST to avoid CORS preflight issues
+    // The endpoint accepts force_refresh as a query parameter
+    const response = await referenceDataApi.get(`/api/reference-data/populate?force_refresh=${forceRefresh}`);
     return response.data;
   },
   refreshCompanyNames: async (accessToken = null) => {
