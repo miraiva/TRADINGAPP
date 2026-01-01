@@ -262,19 +262,31 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
     // If no account IDs found, fallback to showing all payins with user IDs
     // This ensures data shows even when account_details haven't been configured
     if (accountIds.length === 0) {
-      // Try to get all accounts from tokens
+      // Try to get all accounts from tokens first
       try {
         const tokensJson = localStorage.getItem('zerodha_account_tokens');
         const tokens = tokensJson ? JSON.parse(tokensJson) : {};
         accountIds = Object.keys(tokens);
       } catch {
-        // If still no accounts, get unique user IDs from payins data itself
+        // If tokens don't exist, continue to next fallback
+      }
+      
+      // If still no accounts, get unique user IDs from payins data itself
+      // This is the most reliable fallback - show all data that exists
+      if (accountIds.length === 0 && Array.isArray(payins) && payins.length > 0) {
         const uniqueUserIds = [...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))];
         if (uniqueUserIds.length > 0) {
           accountIds = uniqueUserIds;
-        } else {
-          return [];
+          // Log for debugging (only in development)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Dashboard: Using fallback - showing payins for all user IDs found in data:', uniqueUserIds);
+          }
         }
+      }
+      
+      // If still no accounts, return empty
+      if (accountIds.length === 0) {
+        return [];
       }
     }
     

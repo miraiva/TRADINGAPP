@@ -90,17 +90,20 @@ export const filterTradesByView = (trades, view) => {
   }
   
   if (accountIds.length === 0) {
-    // If no accounts are classified for this strategy, fallback to all connected accounts
+    // If no accounts are classified for this strategy, fallback logic
     // This ensures data shows even when account_details haven't been configured yet
     try {
       const tokensJson = localStorage.getItem('zerodha_account_tokens');
       const tokens = tokensJson ? JSON.parse(tokensJson) : {};
       const allAccountIds = Object.keys(tokens);
-      if (allAccountIds.length > 0 && strategy === 'SWING') {
-        // For SWING, show all connected accounts if no strategy classification
-        accountIds = allAccountIds;
+      if (allAccountIds.length > 0) {
+        // If we have connected accounts but no strategy classification, show all for SWING
+        // For LONG_TERM, only show if explicitly configured (no fallback)
+        if (strategy === 'SWING') {
+          accountIds = allAccountIds;
+        }
+        // Note: LONG_TERM requires explicit configuration, no fallback
       }
-      // For LONG_TERM, still return empty if no account_details configured
     } catch {
       // If no fallback available, return empty array
     }
