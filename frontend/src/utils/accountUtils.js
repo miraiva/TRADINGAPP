@@ -90,22 +90,47 @@ export const filterTradesByView = (trades, view) => {
   }
   
   if (accountIds.length === 0) {
-    // If no accounts are classified for this strategy, fallback logic
+    // If no accounts are classified for this view, use fallback logic
     // This ensures data shows even when account_details haven't been configured yet
     try {
       const tokensJson = localStorage.getItem('zerodha_account_tokens');
       const tokens = tokensJson ? JSON.parse(tokensJson) : {};
       const allAccountIds = Object.keys(tokens);
       if (allAccountIds.length > 0) {
-        // If we have connected accounts but no strategy classification, show all for SWING
+        // If we have connected accounts but no strategy classification, show all for SWING/OVERALL
         // For LONG_TERM, only show if explicitly configured (no fallback)
-        if (strategy === 'SWING') {
+        if (view === 'SWING' || view === 'OVERALL') {
           accountIds = allAccountIds;
         }
         // Note: LONG_TERM requires explicit configuration, no fallback
+      } else {
+        // Last resort: get unique user IDs from trades data
+        const uniqueUserIds = [...new Set(trades.map(t => t.zerodha_user_id).filter(Boolean))];
+        if (uniqueUserIds.length > 0 && (view === 'SWING' || view === 'OVERALL')) {
+          accountIds = uniqueUserIds;
+        }
       }
     } catch {
-      // If no fallback available, return empty array
+      // If no fallback available, try to get from trades data
+      const uniqueUserIds = [...new Set(trades.map(t => t.zerodha_user_id).filter(Boolean))];
+      if (uniqueUserIds.length > 0 && (view === 'SWING' || view === 'OVERALL')) {
+        accountIds = uniqueUserIds;
+      }
+    }
+  }
+  
+  // Also add fallback for OVERALL view if it's still empty
+  if (view === 'OVERALL' && accountIds.length === 0) {
+    try {
+      const tokensJson = localStorage.getItem('zerodha_account_tokens');
+      const tokens = tokensJson ? JSON.parse(tokensJson) : {};
+      accountIds = Object.keys(tokens);
+    } catch {
+      // Get from trades data
+      const uniqueUserIds = [...new Set(trades.map(t => t.zerodha_user_id).filter(Boolean))];
+      if (uniqueUserIds.length > 0) {
+        accountIds = uniqueUserIds;
+      }
     }
   }
   
