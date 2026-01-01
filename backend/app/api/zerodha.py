@@ -48,11 +48,12 @@ class ExchangeTokenWithUserIdRequest(BaseModel):
 
 @router.get("/login-url")
 async def get_login_url(
-    zerodha_user_id: Optional[str] = Query(None, description="Zerodha User ID to get login URL for")
+    zerodha_user_id: Optional[str] = Query(None, description="Zerodha User ID to get login URL for"),
+    db: Session = Depends(get_db)
 ):
     """Get Zerodha OAuth login URL for a specific user"""
     try:
-        login_url = zerodha_service.get_login_url(zerodha_user_id=zerodha_user_id)
+        login_url = zerodha_service.get_login_url(zerodha_user_id=zerodha_user_id, db=db)
         return {"login_url": login_url}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -62,15 +63,9 @@ async def get_login_url(
 
 @router.post("/login-url")
 async def get_login_url_post(request: LoginUrlRequest, db: Session = Depends(get_db)):
-    """
-    Get Zerodha OAuth login URL.
-    
-    Per R-SM-2: API key comes from environment variables only.
-    The db parameter is kept for API compatibility but not used.
-    """
+    """Get Zerodha OAuth login URL for a specific user (POST method)"""
     try:
-        # R-SM-2: API key from environment variables, db parameter not used
-        login_url = zerodha_service.get_login_url(zerodha_user_id=request.zerodha_user_id, db=None)
+        login_url = zerodha_service.get_login_url(zerodha_user_id=request.zerodha_user_id, db=db)
         return {"login_url": login_url}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
