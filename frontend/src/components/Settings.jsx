@@ -421,7 +421,7 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
                   {editingAccount ? 'Edit Account' : 'Add New Account'}
                 </h4>
                 
-                {/* R-SM-2: Secrets Management Notice inside form */}
+                {/* API Key Configuration Notice inside form */}
                 <div style={{ 
                   backgroundColor: '#dbeafe', 
                   border: '1px solid #3b82f6', 
@@ -431,8 +431,8 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
                 }}>
                   <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.875rem', fontWeight: '600', color: '#1e40af' }}>🔐 API Key Configuration</h4>
                   <p style={{ margin: 0, fontSize: '0.8125rem', color: '#1e3a8a', lineHeight: '1.5' }}>
-                    API keys are saved to the <code style={{ fontSize: '0.75rem', backgroundColor: '#bfdbfe', padding: '0.125rem 0.25rem', borderRadius: '3px' }}>.env</code> file (not database) for security.<br/>
-                    <strong>After saving, restart the backend server</strong> for changes to take full effect.
+                    API keys are saved to the database. Each user account can have its own Zerodha API key and secret.<br/>
+                    Changes take effect immediately after saving.
                   </p>
                 </div>
                 
