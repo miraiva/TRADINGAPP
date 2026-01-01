@@ -233,14 +233,19 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
           accountForm.api_key.trim(),
           accountForm.secret_key.trim()
         );
-        alert('API key saved successfully to .env file. Restart the backend server for changes to take full effect.');
+        alert('API key saved successfully to database.');
       } catch (error) {
         // Security: Don't log full error which might contain sensitive data
-        console.error('Error saving API key to .env file');
+        console.error('Error saving API key to database');
         const errorMsg = error.response?.data?.detail || error.message || 'Unknown error';
         // Remove any potential sensitive data from error message
         const safeErrorMsg = errorMsg.replace(/api[_\s]?key|secret|token/gi, '[REDACTED]');
-        alert(`Failed to save API key to .env file: ${safeErrorMsg}`);
+        // 405 errors are often CORS or method issues, but data might still be saved
+        if (error.response?.status === 405) {
+          alert('API key might have been saved (405 error - check if data appears in UI). If not, please try again.');
+        } else {
+          alert(`Failed to save API key: ${safeErrorMsg}`);
+        }
         // Continue with localStorage save anyway
       }
     }

@@ -214,7 +214,7 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
   // Memoize open trade symbols for WebSocket dependency
   const openTradeSymbols = useMemo(() => {
     if (!Array.isArray(trades)) return [];
-    const openTrades = trades.filter(t => t.status === 'OPEN');
+    const openTrades = Array.isArray(trades) ? trades.filter(t => t.status === 'OPEN') : [];
     const symbols = [...new Set(openTrades.map(t => t.symbol).filter(s => s && s.trim()))];
     return symbols.sort();
   }, [trades]);
@@ -454,7 +454,7 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
   // This ensures all symbols get price updates even if WebSocket fails for some
   useEffect(() => {
     // Only run if we have open trades
-    const openTrades = trades.filter(t => t.status === 'OPEN');
+    const openTrades = Array.isArray(trades) ? trades.filter(t => t.status === 'OPEN') : [];
     if (openTrades.length === 0) {
       return;
     }

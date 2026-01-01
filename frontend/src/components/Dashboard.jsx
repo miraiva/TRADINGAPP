@@ -223,6 +223,8 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
 
   // Filter trades based on selected view
   const filteredTrades = useMemo(() => {
+    // Safety check: ensure trades is always an array
+    if (!Array.isArray(trades)) return [];
     if (!trades || !Array.isArray(trades)) {
       return [];
     }
@@ -231,7 +233,8 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
 
   // Filter payins based on selected view
   const filteredPayins = useMemo(() => {
-    if (!payins || payins.length === 0) return [];
+    // Safety check: ensure payins is always an array
+    if (!Array.isArray(payins) || payins.length === 0) return [];
     
     // Get account IDs based on view
     let accountIds = [];
