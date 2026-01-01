@@ -392,14 +392,69 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
 
             {!showAccountForm ? (
               <>
-                <button
-                  type="button"
-                  className="btn-confirm"
-                  onClick={handleAddAccount}
-                  style={{ marginBottom: '1rem' }}
-                >
-                  + Add Account
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn-confirm"
+                    onClick={handleAddAccount}
+                  >
+                    + Add Account
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={async () => {
+                      setSyncingToDb(true);
+                      try {
+                        const details = getAccountDetails();
+                        const accountIds = Object.keys(details);
+                        let successCount = 0;
+                        let errorCount = 0;
+                        
+                        for (const userId of accountIds) {
+                          const account = details[userId];
+                          if (account && (account.user_name || account.account_type || account.trading_strategy)) {
+                            try {
+                              await accountAPI.saveAccountDetail(
+                                userId,
+                                account.user_name || null,
+                                account.account_type || 'TRADING_ONLY',
+                                account.trading_strategy || 'SWING'
+                              );
+                              successCount++;
+                            } catch (err) {
+                              console.error(`Failed to sync account ${userId}:`, err);
+                              errorCount++;
+                            }
+                          }
+                        }
+                        
+                        if (successCount > 0) {
+                          alert(`Successfully synced ${successCount} account(s) to database${errorCount > 0 ? `. ${errorCount} failed.` : '.'}`);
+                          // Refresh the list
+                          window.location.reload();
+                        } else if (errorCount > 0) {
+                          alert(`Failed to sync accounts to database. Please check console for details.`);
+                        } else {
+                          alert('No account details found in localStorage to sync.');
+                        }
+                      } catch (err) {
+                        console.error('Error syncing to database:', err);
+                        alert(`Error syncing to database: ${err.message}`);
+                      } finally {
+                        setSyncingToDb(false);
+                      }
+                    }}
+                    disabled={syncingToDb}
+                    style={{ 
+                      backgroundColor: syncingToDb ? '#9ca3af' : '#059669',
+                      color: 'white',
+                      border: 'none'
+                    }}
+                  >
+                    {syncingToDb ? 'Syncing...' : '📤 Sync All to Database'}
+                  </button>
+                </div>
 
                 {allAccounts.length > 0 && (
                   <div className="accounts-list" style={{ marginTop: '1rem' }}>
