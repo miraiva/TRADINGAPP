@@ -145,7 +145,11 @@ export const zerodhaAPI = {
     return response.data;
   },
   getLoginUrlPost: async (zerodhaUserId) => {
-    const response = await api.post('/api/zerodha/login-url', { zerodha_user_id: zerodhaUserId });
+    // Use GET instead of POST to avoid CORS preflight issues
+    // Pass user_id as query parameter
+    const response = await api.get('/api/zerodha/login-url', { 
+      params: { zerodha_user_id: zerodhaUserId }
+    });
     return response.data;
   },
   exchangeToken: async (requestToken) => {
