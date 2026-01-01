@@ -233,7 +233,7 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
           accountForm.api_key.trim(),
           accountForm.secret_key.trim()
         );
-        // Success - close form and let user know
+        // Success - close form and reload
         setShowAccountForm(false);
         setEditingAccount(null);
         // Force a page refresh to ensure data is reloaded
@@ -245,11 +245,28 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
         // Remove any potential sensitive data from error message
         const safeErrorMsg = errorMsg.replace(/api[_\s]?key|secret|token/gi, '[REDACTED]');
         // 405 errors are often CORS preflight issues, but the POST might still succeed
-        // Try to continue anyway - if data was saved, localStorage will also be saved below
+        // Check if the request actually succeeded by trying to fetch the saved key
         if (error.response?.status === 405) {
-          console.warn('405 error on API key save - this may be a CORS preflight issue. POST may have succeeded.');
-          // Don't show alert for 405 - let it continue to save to localStorage
-          // User can check if data appears in UI
+          console.warn('405 error on API key save - checking if data was actually saved...');
+          // Try to verify if the key was saved by fetching it
+          try {
+            const savedKey = await zerodhaAPI.getApiKey(accountForm.user_id);
+            if (savedKey && savedKey.configured) {
+              // Data was saved! The 405 was just a preflight issue
+              console.log('API key was saved successfully despite 405 error');
+              // Continue with success flow
+              setShowAccountForm(false);
+              setEditingAccount(null);
+              window.location.reload();
+              return;
+            }
+          } catch (verifyError) {
+            // Couldn't verify, but might still be saved
+            console.warn('Could not verify if API key was saved:', verifyError);
+          }
+          // If we can't verify, show a message but continue
+          alert('API key may have been saved (405 error detected). Please check if it appears in the UI. If not, try again.');
+          // Continue to save to localStorage anyway
         } else {
           alert(`Failed to save API key: ${safeErrorMsg}`);
           return; // Don't continue if it's a real error
