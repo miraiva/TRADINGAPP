@@ -394,27 +394,51 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
       e.stopPropagation();
     }
     
+    // Log for debugging
+    console.log('handleConnect called', { selectedUserId, targetUserId, availableUserIds, loading });
+    
+    // Don't proceed if already loading
+    if (loading) {
+      console.log('Already loading, ignoring click');
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
       
       // Use selectedUserId from dropdown, or targetUserId prop, or try to get from account_details
       let userIdToUse = selectedUserId || targetUserId;
+      
+      // If no selectedUserId but we have availableUserIds, use the first one
+      if (!userIdToUse && availableUserIds.length > 0) {
+        userIdToUse = availableUserIds[0];
+        setSelectedUserId(userIdToUse);
+        console.log('Auto-selected first user ID:', userIdToUse);
+      }
+      
       if (!userIdToUse) {
         // Try to get from account_details (if user is connecting from Settings)
         const accountDetails = getAccountDetails();
         const accountIds = Object.keys(accountDetails);
         if (accountIds.length === 1) {
           userIdToUse = accountIds[0];
+          console.log('Using single account from account_details:', userIdToUse);
         }
       }
       
       // Validate that a user ID is selected
       if (!userIdToUse) {
-        setError('Please select a User ID from the dropdown');
+        const errorMsg = availableUserIds.length === 0 
+          ? 'No API keys configured. Please add API keys in Settings first.'
+          : 'Please select a User ID from the dropdown';
+        setError(errorMsg);
         setLoading(false);
+        console.error('No user ID available:', { availableUserIds, accountDetails: getAccountDetails() });
         return;
       }
+      
+      console.log('Connecting with user ID:', userIdToUse);
       
       // Use POST method with user_id (this will use the API key from database for that user)
       const response = await zerodhaAPI.getLoginUrlPost(userIdToUse);
@@ -890,7 +914,15 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
               <button
                 className="btn-connect"
                 onClick={handleConnect}
+                onTouchStart={(e) => {
+                  // Ensure touch events work on mobile
+                  e.stopPropagation();
+                }}
                 disabled={loading || !selectedUserId}
+                style={{
+                  cursor: (loading || !selectedUserId) ? 'not-allowed' : 'pointer',
+                  opacity: (loading || !selectedUserId) ? 0.6 : 1
+                }}
               >
                 {loading ? 'Connecting...' : 'Connect to Zerodha'}
               </button>
