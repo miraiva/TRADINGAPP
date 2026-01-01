@@ -5,7 +5,7 @@ python-multipart==0.0.9
 
 # Database
 sqlalchemy>=2.0.45
-# psycopg2-binary==2.9.9  # PostgreSQL adapter (optional - only needed for PostgreSQL)
+psycopg2-binary==2.9.9  # PostgreSQL adapter (required for Railway/Supabase deployment)
 alembic==1.12.1  # Database migrations
 
 # Environment & Config
