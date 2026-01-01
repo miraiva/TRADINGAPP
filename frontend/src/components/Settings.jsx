@@ -233,20 +233,27 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
           accountForm.api_key.trim(),
           accountForm.secret_key.trim()
         );
-        alert('API key saved successfully to database.');
+        // Success - close form and let user know
+        setShowAccountForm(false);
+        setEditingAccount(null);
+        // Force a page refresh to ensure data is reloaded
+        window.location.reload();
       } catch (error) {
         // Security: Don't log full error which might contain sensitive data
         console.error('Error saving API key to database');
         const errorMsg = error.response?.data?.detail || error.message || 'Unknown error';
         // Remove any potential sensitive data from error message
         const safeErrorMsg = errorMsg.replace(/api[_\s]?key|secret|token/gi, '[REDACTED]');
-        // 405 errors are often CORS or method issues, but data might still be saved
+        // 405 errors are often CORS preflight issues, but the POST might still succeed
+        // Try to continue anyway - if data was saved, localStorage will also be saved below
         if (error.response?.status === 405) {
-          alert('API key might have been saved (405 error - check if data appears in UI). If not, please try again.');
+          console.warn('405 error on API key save - this may be a CORS preflight issue. POST may have succeeded.');
+          // Don't show alert for 405 - let it continue to save to localStorage
+          // User can check if data appears in UI
         } else {
           alert(`Failed to save API key: ${safeErrorMsg}`);
+          return; // Don't continue if it's a real error
         }
-        // Continue with localStorage save anyway
       }
     }
 
