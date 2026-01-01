@@ -611,22 +611,244 @@
 
 @media (max-width: 768px) {
   .dashboard-container {
-    padding: 1rem;
+    padding: 0.75rem;
   }
 
   .dashboard-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
+    padding: 1rem;
+  }
+
+  .header-left {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .header-title {
+    width: 100%;
+  }
+
+  .header-title h1 {
+    font-size: 1.25rem;
+  }
+
+  .current-time {
+    font-size: 0.875rem;
+  }
+
+  .view-toggle-container {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .view-toggle-btn {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8125rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .header-right {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .profit-filter-buttons {
+    width: 100%;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-right: 0;
   }
 
   .header-metrics {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .metric-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .metric-label {
+    font-size: 0.75rem;
+  }
+
+  .metric-value {
+    font-size: 1.1rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .btn-buy-header,
+  .btn-payin-header {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+    flex: 1;
+    min-width: 120px;
   }
 
   .summary-cards {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .summary-card {
+    padding: 0.875rem;
+  }
+
+  .card-label {
+    font-size: 0.7rem;
+  }
+
+  .card-value {
+    font-size: 1.25rem;
+  }
+
+  .day-change-indicator {
+    font-size: 0.875rem;
+  }
+
+  .charts-section {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .chart-container {
+    padding: 0.875rem;
+  }
+
+  .chart-container h3 {
+    font-size: 0.9375rem;
+  }
+
+  .trades-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+  }
+
+  .trades-section-title {
+    width: 100%;
+  }
+
+  .trades-section-title h2 {
+    font-size: 1.125rem;
+  }
+
+  .trades-section-controls {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .trades-section-controls .search-box {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .trades-section-controls .filter-buttons {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .trades-table-wrapper {
+    padding: 1rem;
+  }
+
+  .payins-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+  }
+
+  .payins-section-title {
+    width: 100%;
+  }
+
+  .payins-section-title h2 {
+    font-size: 1.125rem;
+  }
+
+  .payins-section-controls {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .payins-section-controls .search-box {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .payins-section-content {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-container {
+    padding: 0.5rem;
+  }
+
+  .dashboard-header {
+    padding: 0.875rem;
+  }
+
+  .header-title h1 {
+    font-size: 1.125rem;
+  }
+
+  .view-toggle-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .metric-value {
+    font-size: 1rem;
+  }
+
+  .summary-card {
+    padding: 0.75rem;
+  }
+
+  .card-value {
+    font-size: 1.125rem;
+  }
+
+  .chart-container {
+    padding: 0.75rem;
+  }
+
+  .trades-section-header,
+  .payins-section-header {
+    padding: 0.75rem;
+  }
+
+  .trades-table-wrapper,
+  .payins-section-content {
+    padding: 0.75rem;
   }
 }
 

@@ -134,11 +134,50 @@
 @media (max-width: 768px) {
   .settings-modal {
     max-width: 100%;
-    margin: 1rem;
+    margin: 0;
+    width: 100%;
   }
 
   .settings-content {
     padding: 1.25rem;
+  }
+
+  .settings-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .settings-section-title {
+    font-size: 1.125rem;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: 0.75rem;
+    padding: 1.25rem;
+  }
+
+  .btn-confirm,
+  .btn-secondary {
+    width: 100%;
+    padding: 0.875rem 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-content {
+    padding: 1rem;
+  }
+
+  .settings-section-title {
+    font-size: 1rem;
+  }
+
+  .settings-section-description {
+    font-size: 0.8125rem;
+  }
+
+  .modal-actions {
+    padding: 1rem;
   }
 }
 

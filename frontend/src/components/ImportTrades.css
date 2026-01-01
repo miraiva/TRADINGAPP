@@ -439,3 +439,79 @@
   max-height: 300px;
   overflow-y: auto;
 }
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 0.5rem;
+  }
+
+  .modal-content {
+    max-width: 100%;
+    margin: 0;
+    width: 100%;
+  }
+
+  .modal-header {
+    padding: 1.25rem 1rem;
+  }
+
+  .modal-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .import-modal-content {
+    max-width: 100%;
+  }
+
+  .import-form {
+    padding: 1.25rem 1rem;
+  }
+
+  .result-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: 0.75rem;
+    padding: 1.25rem 1rem;
+  }
+
+  .btn-cancel,
+  .btn-confirm,
+  .btn-secondary {
+    width: 100%;
+    padding: 0.875rem 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 0;
+  }
+
+  .modal-header {
+    padding: 1rem 0.875rem;
+  }
+
+  .modal-header h2 {
+    font-size: 1.125rem;
+  }
+
+  .import-form {
+    padding: 1rem 0.875rem;
+  }
+
+  .result-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-actions {
+    padding: 1rem 0.875rem;
+  }
+}

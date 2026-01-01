@@ -176,3 +176,60 @@
   min-height: 0;
   overflow: hidden;
 }
+
+@media (max-width: 768px) {
+  .charts-header-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+  }
+
+  .charts-title {
+    font-size: 1.125rem;
+  }
+
+  .charts-list {
+    padding: 0 0.75rem 0.75rem;
+  }
+
+  .chart-card {
+    padding: 0.75rem;
+  }
+
+  .chart-title {
+    font-size: 0.875rem;
+  }
+
+  .chart-card-fixed {
+    min-height: 280px;
+    max-height: 280px;
+  }
+
+  .chart-card .recharts-cartesian-axis-tick-value {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 480px) {
+  .charts-header-bar {
+    padding: 0.75rem;
+  }
+
+  .charts-title {
+    font-size: 1rem;
+  }
+
+  .charts-list {
+    padding: 0 0.5rem 0.5rem;
+  }
+
+  .chart-card {
+    padding: 0.625rem;
+  }
+
+  .chart-card-fixed {
+    min-height: 240px;
+    max-height: 240px;
+  }
+}

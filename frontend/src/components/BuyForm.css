@@ -144,7 +144,7 @@
 
 @media (max-width: 768px) {
   .buy-form-container {
-    padding: 1.5rem;
+    padding: 1.25rem;
   }
 
   .form-grid {
@@ -153,7 +153,21 @@
   }
 
   .buy-form-header h2 {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .buy-form-container {
+    padding: 1rem;
+  }
+
+  .buy-form-header h2 {
+    font-size: 1.125rem;
+  }
+
+  .form-grid {
+    gap: 1rem;
   }
 }
 

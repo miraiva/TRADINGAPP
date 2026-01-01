@@ -405,18 +405,67 @@
 }
 
 @media (max-width: 768px) {
+  .modal-overlay {
+    padding: 0.5rem;
+  }
+
   .buy-modal-content {
     max-width: 100%;
-    margin: 1rem;
+    margin: 0;
+    width: 100%;
+  }
+
+  .modal-header {
+    padding: 1.25rem 1rem;
+  }
+
+  .modal-header h2 {
+    font-size: 1.25rem;
   }
 
   .buy-modal-form {
-    padding: 1.25rem;
+    padding: 1.25rem 1rem;
+    gap: 1.25rem;
   }
 
   .buy-modal-form .form-row {
     grid-template-columns: 1fr;
     gap: 1rem;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: 0.75rem;
+    padding: 1.25rem 1rem;
+  }
+
+  .btn-cancel,
+  .btn-confirm {
+    width: 100%;
+    padding: 0.875rem 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 0;
+  }
+
+  .modal-header {
+    padding: 1rem 0.875rem;
+  }
+
+  .modal-header h2 {
+    font-size: 1.125rem;
+  }
+
+  .buy-modal-form {
+    padding: 1rem 0.875rem;
+    gap: 1rem;
+  }
+
+  .modal-actions {
+    padding: 1rem 0.875rem;
   }
 }
 

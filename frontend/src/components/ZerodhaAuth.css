@@ -473,22 +473,42 @@
 @media (max-width: 768px) {
   .auth-actions {
     flex-direction: column;
+    gap: 0.75rem;
   }
 
   .btn-sync,
   .btn-debug,
   .btn-disconnect {
     width: 100%;
+    padding: 0.875rem 1.25rem;
   }
 
   .debug-panel {
     width: 95%;
+    max-width: 95vw;
     max-height: 90vh;
+    margin: 0.5rem;
   }
 
   .zerodha-compact-menu {
     right: auto;
     left: 0;
+    min-width: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .btn-sync,
+  .btn-debug,
+  .btn-disconnect {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .debug-panel {
+    width: 98%;
+    max-width: 98vw;
+    margin: 0.25rem;
   }
 }
 

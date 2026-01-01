@@ -144,19 +144,68 @@ body {
 
 @media (max-width: 768px) {
   .App-header {
-    padding: 0.875rem 1rem;
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+  }
+
+  .header-logo-title {
+    gap: 0.75rem;
+  }
+
+  .header-logo {
+    height: 36px;
   }
 
   .App-header h1 {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
+    line-height: 1.2;
+  }
+
+  .App-header .header-tagline {
+    font-size: 0.75rem;
+    margin-top: 0.125rem;
   }
 
   .main-content {
-    padding: 1rem;
+    padding: 0.75rem 1rem 1rem 1rem;
+    margin-right: 0; /* Remove margin for side panel on mobile */
   }
 
   .content-wrapper {
-    gap: 1.5rem;
+    gap: 1rem;
+  }
+
+  .btn-settings {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .App-header {
+    padding: 0.625rem 0.75rem;
+  }
+
+  .header-logo {
+    height: 32px;
+  }
+
+  .App-header h1 {
+    font-size: 1rem;
+  }
+
+  .App-header .header-tagline {
+    font-size: 0.7rem;
+  }
+
+  .main-content {
+    padding: 0.5rem 0.75rem 0.75rem 0.75rem;
+  }
+
+  .btn-settings {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
   }
 }
 

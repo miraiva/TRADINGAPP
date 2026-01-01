@@ -289,3 +289,88 @@
   transform: scale(0.95);
 }
 
+@media (max-width: 768px) {
+  .payins-header-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+  }
+
+  .payins-title {
+    font-size: 1.125rem;
+  }
+
+  .payins-header-info {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    justify-content: flex-start;
+  }
+
+  .available-funds-display {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .payins-search {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .payins-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -1rem;
+    padding: 0 1rem;
+  }
+
+  .payins-table {
+    min-width: 800px;
+    font-size: 0.8125rem;
+  }
+
+  .payins-table th,
+  .payins-table td {
+    padding: 0.625rem 0.75rem;
+  }
+
+  .payins-table th {
+    font-size: 0.7rem;
+  }
+
+  .payins-table .comments-cell {
+    max-width: 150px;
+  }
+}
+
+@media (max-width: 480px) {
+  .payins-header-bar {
+    padding: 0.75rem;
+  }
+
+  .payins-title {
+    font-size: 1rem;
+  }
+
+  .payins-table {
+    font-size: 0.75rem;
+    min-width: 700px;
+  }
+
+  .payins-table th,
+  .payins-table td {
+    padding: 0.5rem 0.5rem;
+  }
+
+  .payins-table th {
+    font-size: 0.65rem;
+  }
+
+  .payins-table .comments-cell {
+    max-width: 120px;
+  }
+}
+

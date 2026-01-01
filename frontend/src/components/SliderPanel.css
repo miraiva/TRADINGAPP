@@ -92,4 +92,43 @@
   padding-top: 0;
 }
 
+@media (max-width: 768px) {
+  .slider-panel {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  .slider-header {
+    padding: 1rem;
+  }
+
+  .slider-title {
+    font-size: 1.25rem;
+  }
+
+  .slider-content {
+    padding: 1rem;
+  }
+
+  .slider-close-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .slider-header {
+    padding: 0.875rem;
+  }
+
+  .slider-title {
+    font-size: 1.125rem;
+  }
+
+  .slider-content {
+    padding: 0.875rem;
+  }
+}
+
 
