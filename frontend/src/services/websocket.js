@@ -24,10 +24,23 @@ class WebSocketService {
     }
 
     this.isConnecting = true;
-    // Use relative URL for WebSocket (Vite proxy will handle it)
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const url = `${protocol}//${host}/api/ws/prices`;
+    // Use the same backend URL as API service
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    
+    // Convert HTTP/HTTPS URL to WebSocket URL
+    let wsUrl;
+    if (API_BASE_URL.startsWith('https://')) {
+      wsUrl = API_BASE_URL.replace('https://', 'wss://');
+    } else if (API_BASE_URL.startsWith('http://')) {
+      wsUrl = API_BASE_URL.replace('http://', 'ws://');
+    } else {
+      // Fallback: use window.location for relative URLs (development)
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      wsUrl = `${protocol}//${host}`;
+    }
+    
+    const url = `${wsUrl}/api/ws/prices`;
 
     try {
       this.ws = new WebSocket(url);
