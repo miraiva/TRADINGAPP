@@ -387,7 +387,13 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
     }
   }, [accessToken, selectedUserId]);
 
-  const handleConnect = async () => {
+  const handleConnect = async (e) => {
+    // Prevent any default behavior
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     try {
       setLoading(true);
       setError(null);
@@ -416,13 +422,20 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
       if (response.login_url) {
         // Store selectedUserId in sessionStorage so we can use it after OAuth redirect
         sessionStorage.setItem('zerodha_connecting_user_id', userIdToUse);
-        window.location.href = response.login_url;
+        
+        // On mobile, ensure the redirect happens properly
+        // Use setTimeout to ensure the redirect happens after any async operations
+        setTimeout(() => {
+          window.location.href = response.login_url;
+        }, 100);
+      } else {
+        setError('Failed to get login URL from server');
+        setLoading(false);
       }
     } catch (err) {
       const errorMsg = err.response?.data?.detail || err.message || 'Failed to get login URL';
       setError(errorMsg);
       console.error('Error getting login URL:', err);
-    } finally {
       setLoading(false);
     }
   };

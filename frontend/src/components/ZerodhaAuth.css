@@ -478,9 +478,19 @@
 
   .btn-sync,
   .btn-debug,
-  .btn-disconnect {
+  .btn-disconnect,
+  .btn-connect {
     width: 100%;
     padding: 0.875rem 1.25rem;
+    min-height: 44px; /* Ensure touch-friendly size */
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    touch-action: manipulation; /* Improve touch responsiveness */
+  }
+
+  .btn-zerodha-compact {
+    min-height: 44px;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    touch-action: manipulation;
   }
 
   .debug-panel {
@@ -494,6 +504,12 @@
     right: auto;
     left: 0;
     min-width: 200px;
+  }
+
+  .menu-item {
+    min-height: 44px;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    touch-action: manipulation;
   }
 }
 
