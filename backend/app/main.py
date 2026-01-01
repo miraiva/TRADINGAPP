@@ -55,8 +55,9 @@ if is_production:
         CORSMiddleware,
         allow_origins=allow_origins,
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
         allow_headers=["*"],
+        expose_headers=["*"],
     )
 else:
     # Development mode - allow all origins
