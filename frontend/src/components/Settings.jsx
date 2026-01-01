@@ -109,6 +109,7 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
     account_type: 'TRADING_ONLY',
     trading_strategy: 'SWING' // 'SWING' or 'LONG_TERM'
   });
+  const [syncingToDb, setSyncingToDb] = useState(false);
   
   const connectedAccounts = getConnectedAccounts();
   const allAccounts = getAllAccounts();
@@ -299,15 +300,18 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
 
     // Save account details (user_name, account_type, trading_strategy) to database
     try {
-      await accountAPI.saveAccountDetail(
+      const result = await accountAPI.saveAccountDetail(
         accountForm.user_id,
         accountForm.user_name || null,
         accountForm.account_type,
         accountForm.trading_strategy
       );
-      console.log('Account details saved to database');
+      console.log('Account details saved to database:', result);
     } catch (error) {
       console.error('Error saving account details to database:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      // Show alert to user so they know it failed
+      alert(`Warning: Account details may not have been saved to database. Error: ${error.response?.data?.detail || error.message}`);
       // Continue anyway - localStorage will be saved as fallback
     }
 
