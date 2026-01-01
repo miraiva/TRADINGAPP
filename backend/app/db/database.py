@@ -34,8 +34,11 @@ if DATABASE_URL.startswith("sqlite"):
     )
 else:
     # PostgreSQL or other databases
+    # Use connection pooling settings for better reliability
     engine = create_engine(
         DATABASE_URL,
+        pool_pre_ping=True,  # Verify connections before using them
+        pool_recycle=300,  # Recycle connections after 5 minutes
         echo=False  # Set to True for SQL query logging
     )
 
