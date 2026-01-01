@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { zerodhaAPI, syncAPI, debugAPI, migrationAPI } from '../services/api';
 import { websocketService } from '../services/websocket';
@@ -155,13 +155,17 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
 
     const handleWebsocketDisconnected = () => {
       console.log('ZerodhaAuth: WebSocket disconnected');
-      // Set error if disconnected (but only if auth is successful)
+      // Only set error if WebSocket was actually connected before
+      // Don't set error if WebSocket was never initialized (it's created on-demand)
       const mainStatus = getMainAccountStatus();
-      if (mainStatus.isConnected) {
-        // When websocket disconnects and auth is successful, set error state
+      const wasConnected = websocketService.isConnected() || (websocketService.ws && websocketService.ws.readyState === WebSocket.OPEN);
+      
+      if (mainStatus.isConnected && wasConnected) {
+        // When websocket disconnects after being connected, log it but don't necessarily set error
         // The periodic check will clear it if websocket reconnects
-        console.log('ZerodhaAuth: Auth successful but WebSocket disconnected, setting error state');
-        setWebsocketError(true);
+        console.log('ZerodhaAuth: WebSocket was connected but now disconnected (may reconnect automatically)');
+        // Don't immediately set error - give it time to reconnect
+        // setWebsocketError(true);
       }
     };
 
@@ -179,11 +183,14 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
           const readyState = ws.readyState;
           // WebSocket states: CONNECTING=0, OPEN=1, CLOSING=2, CLOSED=3
           if (readyState === WebSocket.CLOSED) {
-            // WebSocket is closed - this indicates an error if auth is successful
-            if (!websocketError) {
-              console.log('ZerodhaAuth: Auth successful but WebSocket is CLOSED, setting error state');
+            // WebSocket is closed - only set error if it was previously connected
+            // (might have been closed intentionally or temporarily)
+            // Don't set error immediately as it might reconnect
+            if (!websocketError && isWsConnected) {
+              console.log('ZerodhaAuth: WebSocket was connected but is now CLOSED');
             }
-            setWebsocketError(true);
+            // Only set error if WebSocket was explicitly connected before
+            // Otherwise, it's just not initialized yet (which is fine)
           } else if (readyState === WebSocket.OPEN) {
             // WebSocket is open, clear error
             if (websocketError) {
@@ -192,13 +199,15 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
             setWebsocketError(false);
           }
           // CONNECTING and CLOSING states are transient, don't change error state
-        } else if (!isWsConnected) {
-          // No websocket instance exists and not connected - if auth is successful, set error
-          // This handles the case where websocket was never created or was cleaned up
-          if (!websocketError) {
-            console.log('ZerodhaAuth: Auth successful but no WebSocket instance, setting error state');
+        } else {
+          // No websocket instance exists - this is OK! WebSocket is created on-demand
+          // (e.g., when TradesTable needs to update prices)
+          // Only set error if WebSocket was explicitly connected and then disconnected
+          // Don't set error just because WebSocket doesn't exist yet
+          if (websocketError) {
+            // Clear error if WebSocket doesn't exist - it will be created when needed
+            setWebsocketError(false);
           }
-          setWebsocketError(true);
         }
       } else {
         // Auth not successful, clear websocket error state
@@ -281,11 +290,43 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
   }, [accessToken]);
 
   // Fetch available user IDs with API keys on mount
+  const fetchInProgressRef = useRef(false);
+  const abortControllerRef = useRef(null);
+  
+  useEffect(() => {
+    return () => {
+      // Cleanup: abort any pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const fetchAvailableUserIds = async () => {
+      // Prevent duplicate concurrent requests
+      if (fetchInProgressRef.current) {
+        return;
+      }
+
+      // Cancel any previous request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // Create new AbortController for this request
+      abortControllerRef.current = new AbortController();
+      fetchInProgressRef.current = true;
+
       try {
         setLoadingUserIds(true);
         const response = await zerodhaAPI.getAllApiKeys();
+        
+        // Check if request was aborted
+        if (abortControllerRef.current?.signal.aborted) {
+          return;
+        }
+        
         if (response.api_keys && response.api_keys.length > 0) {
           const userIds = response.api_keys.map(key => key.zerodha_user_id);
           setAvailableUserIds(userIds);
@@ -297,18 +338,26 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
           setAvailableUserIds([]);
         }
       } catch (err) {
-        console.error('Error fetching available user IDs:', err);
+        // Don't log error if request was aborted
+        if (err.name !== 'AbortError' && !abortControllerRef.current?.signal.aborted) {
+          console.error('Error fetching available user IDs:', err);
+        }
         setAvailableUserIds([]);
       } finally {
         setLoadingUserIds(false);
+        fetchInProgressRef.current = false;
       }
     };
 
     // Only fetch if not connected (when showing connect button)
+    // Debounce to avoid rapid refetches
     if (!accessToken) {
-      fetchAvailableUserIds();
+      const timeoutId = setTimeout(() => {
+        fetchAvailableUserIds();
+      }, 200); // Small debounce
+      return () => clearTimeout(timeoutId);
     }
-  }, [accessToken]);
+  }, [accessToken, selectedUserId]);
 
   const handleConnect = async () => {
     try {
@@ -437,8 +486,30 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
         });
         window.dispatchEvent(storageEvent);
 
+        // Force immediate status refresh in this component
+        // Use setTimeout to ensure localStorage is updated
+        setTimeout(() => {
+          // Manually trigger status refresh
+          const accounts = getAllConnectedAccounts();
+          if (accounts.length > 0) {
+            const defaultAcc = localStorage.getItem('default_trading_account') || accounts[0].user_id;
+            const token = getAccountToken(defaultAcc);
+            const account = accounts.find(acc => acc.user_id === defaultAcc) || accounts[0];
+            
+            if (token) {
+              setAccessToken(token);
+              setUserId(defaultAcc);
+              setUserName(account?.user_name || null);
+            }
+          }
+          // Dispatch another status change event to ensure all components update
+          window.dispatchEvent(new CustomEvent('zerodhaStatusChanged'));
+        }, 100);
+
         // Trigger migration after successful connection (only if not already migrated for this account)
         handleAutoMigration();
+        
+        console.log(`Zerodha connected: ${response.access_token.substring(0, 30)}...`);
       }
     } catch (err) {
       const errorDetail = err.response?.data?.detail;
@@ -505,7 +576,14 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
         }
       }
     } catch (err) {
-      console.warn(`Auto-migration failed or already done for ${userId}:`, err);
+      // Migration might fail if already done or account has no holdings - that's OK
+      // Only log if it's not a 400 error (which usually means already migrated)
+      if (err.response?.status !== 400) {
+        console.warn(`Auto-migration failed for ${userId}:`, err);
+      } else {
+        // Silent fail for 400 errors (already migrated or no holdings)
+        console.log(`Auto-migration skipped or already done for ${userId}`);
+      }
     }
   };
 

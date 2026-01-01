@@ -214,6 +214,9 @@ const ActionSidePanel = ({ onActionClick }) => {
     
     // Listen for custom status change events
     const handleStatusChange = () => {
+      // Immediate update for status changes
+      updateStatus();
+      // Also do a delayed update to catch any localStorage changes
       setTimeout(updateStatus, 100);
     };
     

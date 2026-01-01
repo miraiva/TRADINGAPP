@@ -1,17 +1,17 @@
 {
-  "timestamp": "2025-12-30T23:15:02.817813",
+  "timestamp": "2025-12-31T19:49:10.479244",
   "backend_tests": {
     "/trades/": {
       "endpoint": "/trades/",
       "method": "GET",
       "requests": 10,
       "errors": 0,
-      "avg_time_ms": 7.47,
-      "min_time_ms": 5.0,
-      "max_time_ms": 10.06,
-      "median_time_ms": 7.47,
-      "p95_time_ms": 10.06,
-      "avg_response_size_bytes": 69059,
+      "avg_time_ms": 7.97,
+      "min_time_ms": 4.58,
+      "max_time_ms": 16.66,
+      "median_time_ms": 7.49,
+      "p95_time_ms": 16.66,
+      "avg_response_size_bytes": 66269,
       "success_rate": 100.0
     },
     "/payins/": {
@@ -19,11 +19,11 @@
       "method": "GET",
       "requests": 10,
       "errors": 0,
-      "avg_time_ms": 2.51,
-      "min_time_ms": 2.23,
-      "max_time_ms": 2.73,
-      "median_time_ms": 2.54,
-      "p95_time_ms": 2.73,
+      "avg_time_ms": 2.78,
+      "min_time_ms": 1.74,
+      "max_time_ms": 4.25,
+      "median_time_ms": 2.17,
+      "p95_time_ms": 4.25,
       "avg_response_size_bytes": 11019,
       "success_rate": 100.0
     },
@@ -32,34 +32,34 @@
       "method": "GET",
       "requests": 10,
       "errors": 0,
-      "avg_time_ms": 2.42,
-      "min_time_ms": 1.91,
-      "max_time_ms": 3.86,
-      "median_time_ms": 2.25,
-      "p95_time_ms": 3.86,
-      "avg_response_size_bytes": 4489,
+      "avg_time_ms": 2.13,
+      "min_time_ms": 1.53,
+      "max_time_ms": 4.26,
+      "median_time_ms": 1.88,
+      "p95_time_ms": 4.26,
+      "avg_response_size_bytes": 4653,
       "success_rate": 100.0
     }
   },
   "summary": {
     "total_endpoints_tested": 3,
-    "overall_avg_response_time_ms": 4.13,
-    "overall_max_response_time_ms": 7.47,
-    "overall_min_response_time_ms": 2.42
+    "overall_avg_response_time_ms": 4.29,
+    "overall_max_response_time_ms": 7.97,
+    "overall_min_response_time_ms": 2.13
   },
   "frontend_bundle": {
-    "total_size_mb": 0.83,
-    "total_size_kb": 854.97,
+    "total_size_mb": 0.85,
+    "total_size_kb": 867.91,
     "files": {
-      "index-DFA729rG.css": {
-        "size_bytes": 68882,
-        "size_kb": 67.27,
+      "index-BzP6G1Cj.css": {
+        "size_bytes": 72625,
+        "size_kb": 70.92,
         "size_mb": 0.07
       },
-      "index-T8xUO2-s.js": {
-        "size_bytes": 806603,
-        "size_kb": 787.7,
-        "size_mb": 0.77
+      "index-DjNqmqzy.js": {
+        "size_bytes": 816112,
+        "size_kb": 796.98,
+        "size_mb": 0.78
       }
     }
   }

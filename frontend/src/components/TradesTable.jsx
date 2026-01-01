@@ -168,6 +168,9 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
     }
   };
 
+  // Track if populate has been called to prevent duplicate calls
+  const populateCalledRef = useRef(false);
+
   useEffect(() => {
     // Only fetch if trades are not provided as props
     if (propTrades === null) {
@@ -175,21 +178,27 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
     }
     
     // Populate reference data on component mount if needed (non-blocking)
-    // Don't await this - let it run in background
-    (async () => {
-      try {
-        const { referenceDataAPI } = await import('../services/api');
-        // The referenceDataAPI.populate now uses a 60-second timeout
-        // This is a background operation, so we don't need Promise.race anymore
-        await referenceDataAPI.populate(false);
-      } catch (err) {
-        // Silently fail - this is a background operation
-        // Only log if it's not a timeout (to reduce console noise)
-        if (err.code !== 'ECONNABORTED' && err.message !== 'Timeout') {
-          console.warn('Failed to populate reference data:', err);
+    // Only populate once per session to prevent duplicate requests
+    if (!populateCalledRef.current) {
+      populateCalledRef.current = true;
+      // Don't await this - let it run in background
+      (async () => {
+        try {
+          const { referenceDataAPI } = await import('../services/api');
+          // The referenceDataAPI.populate now uses a 60-second timeout
+          // This is a background operation, so we don't need Promise.race anymore
+          await referenceDataAPI.populate(false);
+        } catch (err) {
+          // Silently fail - this is a background operation
+          // Only log if it's not a timeout (to reduce console noise)
+          if (err.code !== 'ECONNABORTED' && err.message !== 'Timeout') {
+            console.warn('Failed to populate reference data:', err);
+          }
+          // Reset flag on error so it can be retried
+          populateCalledRef.current = false;
         }
-      }
-    })();
+      })();
+    }
   }, [filter, propTrades]);
 
   // Notify parent component of trades updates after render (not during render)

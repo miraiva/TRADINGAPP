@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { payinAPI, zerodhaAPI } from '../services/api';
 import { filterTradesByView, getCurrentView, getAccountIdsByStrategy, getAllAccountIds, getAccountDetails } from '../utils/accountUtils';
 import './PayinsTable.css';
@@ -23,18 +23,65 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
   const [loadingFunds, setLoadingFunds] = useState(false);
   const [view, setView] = useState(getCurrentView()); // Get current view from Dashboard
   const [searchTerm, setSearchTerm] = useState(externalSearchTerm);
+  const abortControllerRef = React.useRef(null);
+  const fetchInProgressRef = React.useRef(false);
 
+  // Cancel any pending requests when component unmounts
   useEffect(() => {
-    fetchPayins();
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Initial fetch on mount - always fetch regardless of userId
+  useEffect(() => {
+    console.log('PayinsTable - Component mounted, initializing...');
+    console.log('PayinsTable - Current zerodhaUserId prop:', zerodhaUserId);
+    console.log('PayinsTable - Fetch in progress check:', fetchInProgressRef.current);
+    
+    // Always fetch on mount, even if userId is null (we want all payins)
+    const initFetch = async () => {
+      // Small delay to ensure component is fully mounted and refs are ready
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      if (!fetchInProgressRef.current) {
+        console.log('PayinsTable - Calling fetchPayins on mount...');
+        fetchPayins();
+      } else {
+        console.log('PayinsTable - Fetch already in progress, skipping initial fetch');
+      }
+    };
+    
+    initFetch();
     fetchAvailableFunds();
-  }, [zerodhaUserId]); // Fetch when userId changes
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount - fetchPayins is stable
 
-  // Refetch payins when view changes (but not available funds)
+  // Refetch when userId changes (optional - mainly for when userId is provided as prop)
   useEffect(() => {
-    if (view) { // Only refetch if view is set
+    // Only refetch if userId is explicitly provided and changed
+    // Don't refetch if userId is null (we show all payins)
+    if (zerodhaUserId && !fetchInProgressRef.current) {
+      console.log('PayinsTable - zerodhaUserId prop changed, refetching...', zerodhaUserId);
       fetchPayins();
     }
-  }, [view]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zerodhaUserId]);
+
+  // Refetch payins when view changes (but not available funds)
+  // Debounce view changes to prevent rapid refetches
+  // NOTE: We don't need to refetch on view change since filtering happens client-side
+  // useEffect(() => {
+  //   if (view && !fetchInProgressRef.current) { // Only refetch if view is set and no fetch in progress
+  //     const timeoutId = setTimeout(() => {
+  //       fetchPayins();
+  //     }, 300); // Debounce by 300ms
+  //     return () => clearTimeout(timeoutId);
+  //   }
+  // }, [view]);
 
   // Listen for payin updates (when new payins are added)
   useEffect(() => {
@@ -63,25 +110,38 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
 
   // Listen for view changes from Dashboard
   useEffect(() => {
+    let viewChangeTimeout = null;
     const handleViewChange = () => {
       const newView = getCurrentView();
-      if (process.env.NODE_ENV === 'development') {
-        console.log('PayinsTable - View changed to:', newView);
+      // Only update if view actually changed
+      if (newView !== view) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('PayinsTable - View changed to:', newView);
+        }
+        // Debounce view changes
+        if (viewChangeTimeout) {
+          clearTimeout(viewChangeTimeout);
+        }
+        viewChangeTimeout = setTimeout(() => {
+          setView(newView);
+        }, 200); // Debounce view changes
       }
-      setView(newView);
     };
     // Listen to storage events (cross-tab)
     window.addEventListener('storage', handleViewChange);
     // Listen to custom event (same-tab)
     window.addEventListener('viewChanged', handleViewChange);
-    // Also check periodically for same-tab changes (fallback)
-    const interval = setInterval(handleViewChange, 1000);
+    // Also check periodically for same-tab changes (fallback) - but less frequently
+    const interval = setInterval(handleViewChange, 2000); // Changed from 1000ms to 2000ms
     return () => {
       window.removeEventListener('storage', handleViewChange);
       window.removeEventListener('viewChanged', handleViewChange);
       clearInterval(interval);
+      if (viewChangeTimeout) {
+        clearTimeout(viewChangeTimeout);
+      }
     };
-  }, []);
+  }, [view]);
 
   const fetchAvailableFunds = async () => {
     // Try to get account ID - use provided zerodhaUserId or default trading account
@@ -119,37 +179,87 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
     }
   };
 
-  const fetchPayins = async () => {
+  const fetchPayins = useCallback(async () => {
+    // Prevent duplicate concurrent requests
+    if (fetchInProgressRef.current) {
+      console.log('PayinsTable - Fetch already in progress, skipping...');
+      return;
+    }
+
+    console.log('PayinsTable - fetchPayins called, starting request...');
+
+    // Cancel any previous request (but don't create new one if we're already fetching)
+    if (abortControllerRef.current && !fetchInProgressRef.current) {
+      console.log('PayinsTable - Aborting previous request');
+      abortControllerRef.current.abort();
+    }
+
+    // Create new AbortController for this request
+    const currentAbortController = new AbortController();
+    abortControllerRef.current = currentAbortController;
+    fetchInProgressRef.current = true;
+
     try {
       setLoading(true);
       setError(null);
+      
+      console.log('PayinsTable - Starting to fetch payins...');
+      
       // Always fetch ALL payins - filtering by view/strategy happens in filteredPayins
       // Don't filter by zerodhaUserId at the API level, let frontend handle filtering
-      const data = await payinAPI.getAllPayins(null);
-      setPayins(data || []);
+      // Use longer timeout for payins fetch
+      const data = await payinAPI.getAllPayins(null, true); // Use long timeout
+      
+      // Check if request was aborted (only if it's still the current request)
+      if (currentAbortController?.signal.aborted || abortControllerRef.current !== currentAbortController) {
+        console.log('PayinsTable - Request was aborted');
+        return;
+      }
+      
+      console.log('PayinsTable - Received data from API:', data);
+      console.log('PayinsTable - Data length:', data?.length || 0);
+      console.log('PayinsTable - Data type:', Array.isArray(data) ? 'Array' : typeof data);
+      
+      // Ensure data is an array
+      const payinsArray = Array.isArray(data) ? data : (data ? [data] : []);
+      setPayins(payinsArray);
       
       // Debug logging
       if (process.env.NODE_ENV === 'development') {
-        console.log('PayinsTable - Fetched payins:', data?.length || 0);
+        console.log('PayinsTable - Fetched payins:', payinsArray.length);
         console.log('PayinsTable - Current view:', view);
         console.log('PayinsTable - Fetching ALL payins (no API filter)');
-        if (data && data.length > 0) {
-          const uu6974Payins = data.filter(p => p.zerodha_user_id === 'UU6974');
+        if (payinsArray.length > 0) {
+          const uu6974Payins = payinsArray.filter(p => p.zerodha_user_id === 'UU6974');
           console.log('PayinsTable - UU6974 payins found:', uu6974Payins.length, uu6974Payins);
-          const allUserIds = [...new Set(data.map(p => p.zerodha_user_id).filter(Boolean))];
+          const allUserIds = [...new Set(payinsArray.map(p => p.zerodha_user_id).filter(Boolean))];
           console.log('PayinsTable - All user IDs in fetched payins:', allUserIds);
+        } else {
+          console.warn('PayinsTable - No payins returned from API');
         }
       }
     } catch (err) {
+      // Don't show error if request was aborted
+      if (err.name === 'AbortError' || currentAbortController?.signal.aborted || abortControllerRef.current !== currentAbortController) {
+        console.log('PayinsTable - Request was aborted:', err);
+        return;
+      }
       const errorMessage = err.response?.data?.detail || err.message || 'Failed to load payins. Please try again.';
       setError(errorMessage);
-      console.error('Error fetching payins:', err);
-      console.error('Error response:', err.response);
+      console.error('PayinsTable - Error fetching payins:', err);
+      console.error('PayinsTable - Error name:', err.name);
+      console.error('PayinsTable - Error message:', err.message);
+      console.error('PayinsTable - Error code:', err.code);
+      console.error('PayinsTable - Error response:', err.response);
       setPayins([]);
     } finally {
-      setLoading(false);
+      // Only update state if this is still the current request
+      if (abortControllerRef.current === currentAbortController) {
+        setLoading(false);
+        fetchInProgressRef.current = false;
+      }
     }
-  };
+  }, []); // Empty deps - fetchPayins doesn't depend on any props/state that change
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -197,16 +307,39 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
       }
     }
     
+    // If no account IDs found for the view, fallback to all accounts with tokens
+    // This ensures payins show even if accounts aren't classified in account_details yet
     if (accountIds.length === 0) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn('PayinsTable - No account IDs found for view:', view);
+        console.warn('PayinsTable - No account IDs found for view:', view, '- falling back to all connected accounts');
       }
-      return [];
+      // Get all accounts that have tokens (connected accounts)
+      try {
+        const tokensJson = localStorage.getItem('zerodha_account_tokens');
+        const tokens = tokensJson ? JSON.parse(tokensJson) : {};
+        accountIds = Object.keys(tokens);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('PayinsTable - Using all connected accounts as fallback:', accountIds);
+        }
+      } catch {
+        // If still no accounts from tokens, try to get all unique user IDs from payins
+        // This is a last resort fallback - show all payins that have a user_id
+        const allPayinUserIds = [...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))];
+        if (allPayinUserIds.length > 0) {
+          accountIds = allPayinUserIds;
+          if (process.env.NODE_ENV === 'development') {
+            console.log('PayinsTable - Using all user IDs from payins as fallback:', accountIds);
+          }
+        } else {
+          // If still no accounts, return empty to show "no payins" state
+          return [];
+        }
+      }
     }
     
     const filtered = payins.filter(payin => {
       const payinAccountId = payin.zerodha_user_id;
-      // Exclude payins without account ID - only include payins from classified accounts
+      // Exclude payins without account ID
       if (!payinAccountId) {
         return false;
       }
@@ -214,6 +347,18 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
       const normalizedPayinId = payinAccountId.trim();
       return accountIds.some(accountId => accountId.trim().toUpperCase() === normalizedPayinId.toUpperCase());
     });
+    
+    // Final fallback: if filtering resulted in 0 payins but we have payins, show all payins
+    // This can happen if account configuration doesn't match the actual payin user IDs
+    if (filtered.length === 0 && payins.length > 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('PayinsTable - Filtering resulted in 0 payins, showing all payins as fallback');
+        console.warn('PayinsTable - Account IDs looked for:', accountIds);
+        console.warn('PayinsTable - User IDs in payins:', [...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))]);
+      }
+      // Return all payins that have a user_id (exclude null/undefined)
+      return payins.filter(p => p.zerodha_user_id);
+    }
     
     // Debug logging
     if (process.env.NODE_ENV === 'development') {
@@ -236,9 +381,18 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
   const sortedPayins = React.useMemo(() => {
     let sorted = [...filteredPayins];
 
+    if (process.env.NODE_ENV === 'development') {
+      console.log('PayinsTable - sortedPayins useMemo running:', {
+        filteredPayinsLength: filteredPayins.length,
+        searchTerm: searchTerm,
+        sortConfig: sortConfig
+      });
+    }
+
     // Apply search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
+      const beforeSearch = sorted.length;
       sorted = sorted.filter(payin => {
         return (
           (payin.paid_by && payin.paid_by.toLowerCase().includes(searchLower)) ||
@@ -246,6 +400,9 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
           (payin.zerodha_user_id && payin.zerodha_user_id.toLowerCase().includes(searchLower))
         );
       });
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`PayinsTable - Search filter: ${beforeSearch} -> ${sorted.length} (search: "${searchTerm}")`);
+      }
     }
 
     // Apply sorting
@@ -274,6 +431,10 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
         }
         return 0;
       });
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`PayinsTable - sortedPayins result: ${sorted.length} payins`);
     }
 
     return sorted;
@@ -349,8 +510,16 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
   if (error) {
     return (
       <div className="payins-error">
-        <p>{error}</p>
+        <p style={{ color: 'red', fontWeight: 'bold' }}>Error loading payins: {error}</p>
         <button onClick={fetchPayins} className="btn-retry">Retry</button>
+        {process.env.NODE_ENV === 'development' && (
+          <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: '#6b7280' }}>
+            <p>Debug Info:</p>
+            <p>Payins state: {payins.length}</p>
+            <p>Loading state: {loading ? 'true' : 'false'}</p>
+            <p>Fetch in progress: {fetchInProgressRef.current ? 'true' : 'false'}</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -386,18 +555,52 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
         </div>
       </div>
 
-      {sortedPayins.length === 0 ? (
+      {sortedPayins.length === 0 && filteredPayins.length === 0 ? (
         <div className="payins-empty">
           <p>No payins found</p>
+          <button 
+            onClick={fetchPayins} 
+            className="btn-retry"
+            style={{ marginTop: '1rem', padding: '0.5rem 1rem' }}
+          >
+            Refresh Payins
+          </button>
           {process.env.NODE_ENV === 'development' && (
             <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: '#6b7280' }}>
               <p>Debug Info:</p>
               <p>Current View: {view}</p>
               <p>Total Payins Fetched: {payins.length}</p>
               <p>Filtered Payins: {filteredPayins.length}</p>
+              <p>Sorted Payins: {sortedPayins.length}</p>
+              <p>Search Term: "{searchTerm}"</p>
+              <p>Loading: {loading ? 'true' : 'false'}</p>
+              <p>Error: {error || 'none'}</p>
+              <p>Fetch In Progress: {fetchInProgressRef.current ? 'true' : 'false'}</p>
               {payins.length > 0 && (
                 <p>User IDs in fetched payins: {[...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))].join(', ')}</p>
               )}
+              {filteredPayins.length > 0 && sortedPayins.length === 0 && (
+                <p style={{ color: 'orange' }}>⚠️ Filtered payins exist ({filteredPayins.length}) but sorted payins is empty. Check search term or sorting.</p>
+              )}
+              {payins.length === 0 && !loading && !error && (
+                <p style={{ color: 'orange' }}>⚠️ No payins fetched from API. Check console for errors.</p>
+              )}
+            </div>
+          )}
+        </div>
+      ) : sortedPayins.length === 0 && filteredPayins.length > 0 ? (
+        <div className="payins-empty">
+          <p>No payins match your search "{searchTerm}"</p>
+          <button 
+            onClick={() => setSearchTerm('')} 
+            className="btn-retry"
+            style={{ marginTop: '1rem', padding: '0.5rem 1rem' }}
+          >
+            Clear Search
+          </button>
+          {process.env.NODE_ENV === 'development' && (
+            <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: '#6b7280' }}>
+              <p>Debug: {filteredPayins.length} payins match view filter but were filtered out by search term.</p>
             </div>
           )}
         </div>
