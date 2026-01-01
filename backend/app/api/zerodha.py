@@ -32,9 +32,12 @@ class PlaceOrderRequest(BaseModel):
     variety: str = "regular"
 
 
-# R-SM-1, R-SM-3: API keys are no longer managed via API endpoints
-# Secrets must be configured via environment variables only
-# Removed ApiKeyRequest model - API key management is not supported
+# R-SM-2: Secrets are managed via environment variables (saved to .env file via UI)
+class ApiKeyRequest(BaseModel):
+    """Request model for saving API keys to .env file (not database)"""
+    zerodha_user_id: str  # Kept for API compatibility
+    api_key: str
+    api_secret: str
 
 class LoginUrlRequest(BaseModel):
     zerodha_user_id: str
