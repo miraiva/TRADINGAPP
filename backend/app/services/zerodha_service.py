@@ -12,10 +12,17 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-# Get Zerodha credentials from environment (fallback for backward compatibility)
-ZERODHA_API_KEY = os.getenv("ZERODHA_API_KEY")
-ZERODHA_API_SECRET = os.getenv("ZERODHA_API_SECRET")
-ZERODHA_REDIRECT_URL = os.getenv("ZERODHA_REDIRECT_URL", "http://localhost:5173/auth/zerodha/callback")
+# Get Zerodha credentials from environment variables only (R-SM-2, R-SM-3)
+# Secrets must be injected at runtime via environment variables
+# Never stored in database or committed to version control
+# These can be updated at runtime via API (which updates .env file and reloads these values)
+def _get_env_var(key: str, default: str = None) -> Optional[str]:
+    """Helper to get environment variable (allows runtime updates)"""
+    return os.getenv(key, default)
+
+ZERODHA_API_KEY = _get_env_var("ZERODHA_API_KEY")
+ZERODHA_API_SECRET = _get_env_var("ZERODHA_API_SECRET")
+ZERODHA_REDIRECT_URL = _get_env_var("ZERODHA_REDIRECT_URL", "http://localhost:5173/auth/zerodha/callback")
 
 # Cache for instruments list (to avoid downloading every time)
 _instruments_cache = {}
@@ -23,40 +30,35 @@ _instruments_cache_timestamp = {}
 _instruments_cache_ttl = timedelta(hours=24)  # Cache for 24 hours
 
 
-def get_api_key_for_user(zerodha_user_id: Optional[str], db: Optional[Session] = None) -> Tuple[Optional[str], Optional[str]]:
-    """Get API key and secret for a specific user from database"""
-    if not zerodha_user_id or not db:
-        # Fallback to environment variables for backward compatibility
-        return (ZERODHA_API_KEY, ZERODHA_API_SECRET)
+def get_api_key_for_user(zerodha_user_id: Optional[str] = None, db: Optional[Session] = None) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Get API key and secret from environment variables only.
     
-    try:
-        from app.models.zerodha_api_key import ZerodhaApiKey
-        api_key_record = db.query(ZerodhaApiKey).filter(
-            ZerodhaApiKey.zerodha_user_id == zerodha_user_id,
-            ZerodhaApiKey.is_active == True
-        ).first()
-        
-        if api_key_record:
-            return (api_key_record.api_key, api_key_record.api_secret)
-        else:
-            # Fallback to environment variables if not found in database
-            logger.warning(f"API key not found for user {zerodha_user_id}, using environment variable")
-            return (ZERODHA_API_KEY, ZERODHA_API_SECRET)
-    except Exception as e:
-        logger.error(f"Error getting API key for user {zerodha_user_id}: {e}")
-        # Fallback to environment variables
-        return (ZERODHA_API_KEY, ZERODHA_API_SECRET)
+    Per R-SM-2 and R-SM-3: Secrets are injected at runtime via environment variables,
+    never stored in database.
+    
+    Args:
+        zerodha_user_id: User ID (kept for API compatibility, not used for lookup)
+        db: Database session (kept for API compatibility, not used for lookup)
+    
+    Returns:
+        Tuple of (api_key, api_secret) from environment variables (reads fresh from env)
+    """
+    # R-SM-2, R-SM-3: Always use environment variables, never database
+    # Read fresh from environment to allow runtime updates
+    return (_get_env_var("ZERODHA_API_KEY"), _get_env_var("ZERODHA_API_SECRET"))
 
 
 def get_kite_instance(access_token: str, api_key: Optional[str] = None, zerodha_user_id: Optional[str] = None, db: Optional[Session] = None) -> KiteConnect:
-    """Get a KiteConnect instance with access token"""
-    # If api_key not provided, try to get it for the user
-    if not api_key and zerodha_user_id and db:
-        api_key, _ = get_api_key_for_user(zerodha_user_id, db)
+    """
+    Get a KiteConnect instance with access token.
     
-    api_key_to_use = api_key or ZERODHA_API_KEY
+    Per R-SM-2: API key comes from environment variables only.
+    """
+    # R-SM-2: Use provided api_key or fallback to environment variable (read fresh)
+    api_key_to_use = api_key or _get_env_var("ZERODHA_API_KEY")
     if not api_key_to_use:
-        raise ValueError("API key not configured")
+        raise ValueError("ZERODHA_API_KEY environment variable not configured")
     
     kite = KiteConnect(api_key=api_key_to_use)
     kite.set_access_token(access_token)
@@ -64,17 +66,19 @@ def get_kite_instance(access_token: str, api_key: Optional[str] = None, zerodha_
 
 
 def get_login_url(zerodha_user_id: Optional[str] = None, db: Optional[Session] = None) -> str:
-    """Get Zerodha OAuth login URL for a specific user"""
+    """
+    Get Zerodha OAuth login URL.
+    
+    Per R-SM-2: API key comes from environment variables only.
+    Args zerodha_user_id and db are kept for API compatibility but not used.
+    """
     api_key, _ = get_api_key_for_user(zerodha_user_id, db)
     
     if not api_key:
-        if zerodha_user_id:
-            raise ValueError(
-                f"API key not configured for user {zerodha_user_id}. "
-                "Please configure API key in Settings before connecting."
-            )
-        else:
-            raise ValueError("ZERODHA_API_KEY not configured")
+        raise ValueError(
+            "ZERODHA_API_KEY environment variable not configured. "
+            "Please set ZERODHA_API_KEY in your environment or configure via Settings UI."
+        )
     
     kite = KiteConnect(api_key=api_key)
     login_url = kite.login_url()
@@ -86,17 +90,19 @@ def generate_session(
     zerodha_user_id: Optional[str] = None,
     db: Optional[Session] = None
 ) -> Dict:
-    """Exchange request token for access token using user-specific API key"""
+    """
+    Exchange request token for access token.
+    
+    Per R-SM-2: API key and secret come from environment variables only.
+    Args zerodha_user_id and db are kept for API compatibility but not used.
+    """
     api_key, api_secret = get_api_key_for_user(zerodha_user_id, db)
     
     if not api_key or not api_secret:
-        if zerodha_user_id:
-            raise ValueError(
-                f"API key not configured for user {zerodha_user_id}. "
-                "Please configure API key and secret in Settings before connecting."
-            )
-        else:
-            raise ValueError("Zerodha credentials not configured")
+        raise ValueError(
+            "ZERODHA_API_KEY and ZERODHA_API_SECRET environment variables not configured. "
+            "Please set these in your environment or configure via Settings UI."
+        )
     
     try:
         kite = KiteConnect(api_key=api_key)

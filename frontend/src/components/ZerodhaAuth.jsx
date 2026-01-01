@@ -139,31 +139,32 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
   // Listen to websocket errors and connection state
   useEffect(() => {
     const handleWebsocketError = (error) => {
-      console.error('ZerodhaAuth: WebSocket error detected:', error);
+      // Log only error type, not full error object which might contain sensitive data
+      console.error('ZerodhaAuth: WebSocket error detected');
       const mainStatus = getMainAccountStatus();
       if (mainStatus.isConnected) {
-        console.log('ZerodhaAuth: Setting websocket error state to true');
         setWebsocketError(true);
       }
     };
 
     const handleWebsocketConnected = () => {
-      console.log('ZerodhaAuth: WebSocket connected successfully');
+      // Reduced logging - only log on state changes
+      // console.log('ZerodhaAuth: WebSocket connected successfully');
       // Clear error when websocket connects successfully
       setWebsocketError(false);
     };
 
     const handleWebsocketDisconnected = () => {
-      console.log('ZerodhaAuth: WebSocket disconnected');
+      // Reduced logging - WebSocket disconnects are normal
+      // console.log('ZerodhaAuth: WebSocket disconnected');
       // Only set error if WebSocket was actually connected before
       // Don't set error if WebSocket was never initialized (it's created on-demand)
       const mainStatus = getMainAccountStatus();
       const wasConnected = websocketService.isConnected() || (websocketService.ws && websocketService.ws.readyState === WebSocket.OPEN);
       
       if (mainStatus.isConnected && wasConnected) {
-        // When websocket disconnects after being connected, log it but don't necessarily set error
+        // When websocket disconnects after being connected, don't log every time
         // The periodic check will clear it if websocket reconnects
-        console.log('ZerodhaAuth: WebSocket was connected but now disconnected (may reconnect automatically)');
         // Don't immediately set error - give it time to reconnect
         // setWebsocketError(true);
       }
@@ -186,16 +187,15 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
             // WebSocket is closed - only set error if it was previously connected
             // (might have been closed intentionally or temporarily)
             // Don't set error immediately as it might reconnect
-            if (!websocketError && isWsConnected) {
-              console.log('ZerodhaAuth: WebSocket was connected but is now CLOSED');
-            }
+            // Reduced logging - WebSocket state changes are frequent
             // Only set error if WebSocket was explicitly connected before
             // Otherwise, it's just not initialized yet (which is fine)
           } else if (readyState === WebSocket.OPEN) {
             // WebSocket is open, clear error
-            if (websocketError) {
-              console.log('ZerodhaAuth: WebSocket is now OPEN, clearing error state');
-            }
+            // Reduced logging - connection state changes are frequent
+            // if (websocketError) {
+            //   console.log('ZerodhaAuth: WebSocket is now OPEN, clearing error state');
+            // }
             setWebsocketError(false);
           }
           // CONNECTING and CLOSING states are transient, don't change error state
@@ -320,27 +320,55 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
 
       try {
         setLoadingUserIds(true);
-        const response = await zerodhaAPI.getAllApiKeys();
         
-        // Check if request was aborted
-        if (abortControllerRef.current?.signal.aborted) {
-          return;
-        }
-        
-        if (response.api_keys && response.api_keys.length > 0) {
-          const userIds = response.api_keys.map(key => key.zerodha_user_id);
-          setAvailableUserIds(userIds);
-          // Set default selection to first user ID if none selected
-          if (!selectedUserId && userIds.length > 0) {
-            setSelectedUserId(userIds[0]);
+        // Get user IDs from backend API keys endpoint (which returns configured status)
+        // Falls back to account_details in localStorage
+        try {
+          const response = await zerodhaAPI.getAllApiKeys();
+          
+          // Check if request was aborted
+          if (abortControllerRef.current?.signal.aborted) {
+            return;
           }
-        } else {
-          setAvailableUserIds([]);
+          
+          if (response.api_keys && response.api_keys.length > 0) {
+            // If API key is configured, get user IDs from account_details
+            const accountDetailsJson = localStorage.getItem('account_details');
+            const accountDetails = accountDetailsJson ? JSON.parse(accountDetailsJson) : {};
+            const userIds = Object.keys(accountDetails).filter(id => id && id.trim() !== '');
+            
+            if (userIds.length > 0) {
+              setAvailableUserIds(userIds);
+              if (!selectedUserId && userIds.length > 0) {
+                setSelectedUserId(userIds[0]);
+              }
+            } else {
+              setAvailableUserIds([]);
+            }
+          } else {
+            // No API keys configured, still show account_details user IDs
+            const accountDetailsJson = localStorage.getItem('account_details');
+            const accountDetails = accountDetailsJson ? JSON.parse(accountDetailsJson) : {};
+            const userIds = Object.keys(accountDetails).filter(id => id && id.trim() !== '');
+            setAvailableUserIds(userIds);
+            if (!selectedUserId && userIds.length > 0) {
+              setSelectedUserId(userIds[0]);
+            }
+          }
+        } catch (localStorageErr) {
+          // Reduced logging - localStorage errors are usually not critical
+          // console.warn('Error fetching user IDs:', localStorageErr);
+          // Fallback to localStorage
+          const accountDetailsJson = localStorage.getItem('account_details');
+          const accountDetails = accountDetailsJson ? JSON.parse(accountDetailsJson) : {};
+          const userIds = Object.keys(accountDetails).filter(id => id && id.trim() !== '');
+          setAvailableUserIds(userIds);
         }
       } catch (err) {
         // Don't log error if request was aborted
         if (err.name !== 'AbortError' && !abortControllerRef.current?.signal.aborted) {
-          console.error('Error fetching available user IDs:', err);
+          // Reduced logging - only log unexpected errors
+          // console.error('Error fetching available user IDs:', err);
         }
         setAvailableUserIds([]);
       } finally {
@@ -509,7 +537,8 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
         // Trigger migration after successful connection (only if not already migrated for this account)
         handleAutoMigration();
         
-        console.log(`Zerodha connected: ${response.access_token.substring(0, 30)}...`);
+        // Security: Never log access tokens, even partially
+        console.log('Zerodha connected successfully');
       }
     } catch (err) {
       const errorDetail = err.response?.data?.detail;
@@ -551,7 +580,8 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
       // Migration is per-account, so use current account's token
       const response = await migrationAPI.migrateHoldings(accessToken);
       if (response.success) {
-        console.log(`Auto-migration completed for ${userId}:`, response.message);
+        // Reduced logging - migration completion details not needed in console
+        // console.log(`Auto-migration completed for ${userId}`);
         
         // Trigger price update after migration to populate LTP for migrated trades
         // Use market data account token (paid account) for price updates
@@ -562,12 +592,14 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
           const marketDataToken = getMarketDataToken();
           if (marketDataToken) {
             await tradesAPI.updatePrices('ZERODHA');
-            console.log('Price update completed after migration');
+            // Reduced logging - price updates are routine operations
+            // console.log('Price update completed after migration');
           } else {
-            console.warn('Market data token not available, skipping price update');
+            // console.warn('Market data token not available, skipping price update');
           }
         } catch (priceErr) {
-          console.warn('Failed to update prices after migration:', priceErr);
+          // Reduced logging - price update failures are handled silently
+          // console.warn('Failed to update prices after migration:', priceErr);
           // Don't fail migration if price update fails
         }
         
@@ -579,10 +611,12 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
       // Migration might fail if already done or account has no holdings - that's OK
       // Only log if it's not a 400 error (which usually means already migrated)
       if (err.response?.status !== 400) {
-        console.warn(`Auto-migration failed for ${userId}:`, err);
+        // Reduced logging - only log unexpected migration errors
+        // console.warn(`Auto-migration failed for ${userId}:`, err);
       } else {
         // Silent fail for 400 errors (already migrated or no holdings)
-        console.log(`Auto-migration skipped or already done for ${userId}`);
+        // Reduced logging - skipped migrations are expected
+        // console.log(`Auto-migration skipped or already done for ${userId}`);
       }
     }
   };
@@ -623,10 +657,11 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
       setLoading(true);
       setError(null);
       const data = await syncAPI.getLastSyncData();
-      console.log('Last sync data received:', data);
+      // Reduced logging - sync data received is not critical to log
+      // console.log('Last sync data received:', data);
       setLastSyncData(data);
       setShowLastSyncData(true);
-      console.log('Modal should be visible now');
+      // console.log('Modal should be visible now');
     } catch (err) {
       setError('Failed to fetch last sync data.');
       console.error('Error fetching last sync data:', err);

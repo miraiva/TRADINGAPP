@@ -159,6 +159,32 @@ async def startup_event():
     from app.db.database import init_db, SessionLocal
     from app.services import populate_reference_data
     
+    # R-SM-4: Fail fast at startup if required secrets are not present
+    import os
+    required_secrets = {
+        "ZERODHA_API_KEY": os.getenv("ZERODHA_API_KEY"),
+        "ZERODHA_API_SECRET": os.getenv("ZERODHA_API_SECRET")
+    }
+    
+    missing_secrets = [key for key, value in required_secrets.items() if not value]
+    if missing_secrets:
+        error_msg = (
+            f"Application startup failed: Required secrets not configured.\n"
+            f"Missing environment variables: {', '.join(missing_secrets)}\n\n"
+            f"Configure secrets via one of these methods:\n"
+            f"1. Settings UI: Open Settings → Add/Edit Account → Enter API Key and Secret\n"
+            f"2. Manual .env file: Create backend/.env with:\n"
+            f"   ZERODHA_API_KEY=your_api_key\n"
+            f"   ZERODHA_API_SECRET=your_api_secret\n"
+            f"3. Environment variables:\n"
+            f"   export ZERODHA_API_KEY='your_api_key'\n"
+            f"   export ZERODHA_API_SECRET='your_api_secret'\n"
+        )
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+    
+    logger.info("✓ Required secrets validated at startup")
+    
     init_db()
     
     # Start scheduler (if available)

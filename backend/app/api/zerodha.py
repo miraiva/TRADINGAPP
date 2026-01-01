@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.services import zerodha_service
 from app.db.database import get_db
-from app.models.zerodha_api_key import ZerodhaApiKey
+# R-SM-3: ZerodhaApiKey model import removed - secrets no longer stored in database
 
 router = APIRouter(prefix="/api/zerodha", tags=["zerodha"])
 
@@ -32,11 +32,9 @@ class PlaceOrderRequest(BaseModel):
     variety: str = "regular"
 
 
-class ApiKeyRequest(BaseModel):
-    zerodha_user_id: str
-    api_key: str
-    api_secret: str
-
+# R-SM-1, R-SM-3: API keys are no longer managed via API endpoints
+# Secrets must be configured via environment variables only
+# Removed ApiKeyRequest model - API key management is not supported
 
 class LoginUrlRequest(BaseModel):
     zerodha_user_id: str
@@ -63,9 +61,15 @@ async def get_login_url(
 
 @router.post("/login-url")
 async def get_login_url_post(request: LoginUrlRequest, db: Session = Depends(get_db)):
-    """Get Zerodha OAuth login URL for a specific user (POST method)"""
+    """
+    Get Zerodha OAuth login URL.
+    
+    Per R-SM-2: API key comes from environment variables only.
+    The db parameter is kept for API compatibility but not used.
+    """
     try:
-        login_url = zerodha_service.get_login_url(zerodha_user_id=request.zerodha_user_id, db=db)
+        # R-SM-2: API key from environment variables, db parameter not used
+        login_url = zerodha_service.get_login_url(zerodha_user_id=request.zerodha_user_id, db=None)
         return {"login_url": login_url}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -75,9 +79,15 @@ async def get_login_url_post(request: LoginUrlRequest, db: Session = Depends(get
 
 @router.post("/exchange-token")
 async def exchange_token(request: ExchangeTokenRequest, db: Session = Depends(get_db)):
-    """Exchange request token for access token (legacy - without user_id)"""
+    """
+    Exchange request token for access token (legacy - without user_id).
+    
+    Per R-SM-2: API key comes from environment variables only.
+    The db parameter is kept for API compatibility but not used.
+    """
     try:
-        result = zerodha_service.generate_session(request.request_token, db=db)
+        # R-SM-2: API key from environment variables, db parameter not used
+        result = zerodha_service.generate_session(request.request_token, zerodha_user_id=None, db=None)
         
         # Trigger one-time migration if not done yet
         from app.services.migration_service import is_migration_done, migrate_holdings
@@ -129,12 +139,18 @@ async def exchange_token(request: ExchangeTokenRequest, db: Session = Depends(ge
 
 @router.post("/exchange-token-with-user")
 async def exchange_token_with_user(request: ExchangeTokenWithUserIdRequest, db: Session = Depends(get_db)):
-    """Exchange request token for access token with user_id"""
+    """
+    Exchange request token for access token with user_id.
+    
+    Per R-SM-2: API key comes from environment variables only.
+    The db parameter is kept for API compatibility but not used.
+    """
     try:
+        # R-SM-2: API key from environment variables, db parameter not used
         result = zerodha_service.generate_session(
             request.request_token, 
             zerodha_user_id=request.zerodha_user_id,
-            db=db
+            db=None
         )
         
         # Trigger one-time migration if not done yet
@@ -187,87 +203,120 @@ async def exchange_token_with_user(request: ExchangeTokenWithUserIdRequest, db: 
 
 @router.post("/api-keys")
 async def save_api_key(request: ApiKeyRequest, db: Session = Depends(get_db)):
-    """Save or update API key for a user"""
+    """
+    Save API key and secret to .env file (not database).
+    
+    Per R-SM-2 and R-SM-3: Secrets are stored in environment variables (.env file),
+    never in the database.
+    
+    Note: After saving, the application needs to be restarted for changes to take effect,
+    or the .env file will be reloaded on next request.
+    """
+    import os
+    from pathlib import Path
+    from dotenv import set_key
+    
     try:
-        # Check if API key already exists
-        existing = db.query(ZerodhaApiKey).filter(
-            ZerodhaApiKey.zerodha_user_id == request.zerodha_user_id
-        ).first()
+        # Get .env file path (same as used in main.py)
+        env_path = Path(__file__).resolve().parent.parent.parent / ".env"
         
-        if existing:
-            # Update existing
-            existing.api_key = request.api_key
-            existing.api_secret = request.api_secret
-            existing.is_active = True
-        else:
-            # Create new
-            api_key_record = ZerodhaApiKey(
-                zerodha_user_id=request.zerodha_user_id,
-                api_key=request.api_key,
-                api_secret=request.api_secret,
-                is_active=True
-            )
-            db.add(api_key_record)
+        # Ensure .env file exists
+        env_path.touch(exist_ok=True)
         
-        db.commit()
-        return {"message": "API key saved successfully", "zerodha_user_id": request.zerodha_user_id}
+        # Update .env file with new values
+        set_key(env_path, "ZERODHA_API_KEY", request.api_key)
+        set_key(env_path, "ZERODHA_API_SECRET", request.api_secret)
+        
+        # Reload environment variables in current process
+        # Note: This only affects the current process. For persistent changes,
+        # the application should be restarted
+        from dotenv import load_dotenv
+        load_dotenv(env_path, override=True)
+        
+        # Update the service-level variables
+        import app.services.zerodha_service as zerodha_service
+        zerodha_service.ZERODHA_API_KEY = request.api_key
+        zerodha_service.ZERODHA_API_SECRET = request.api_secret
+        
+        return {
+            "message": "API key saved successfully to .env file",
+            "zerodha_user_id": request.zerodha_user_id,
+            "note": "Application restart recommended for changes to persist across all processes"
+        }
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to save API key: {str(e)}")
-
-
-@router.get("/api-keys/{zerodha_user_id}")
-async def get_api_key(zerodha_user_id: str, db: Session = Depends(get_db)):
-    """Get API key for a user (without exposing secret)"""
-    try:
-        api_key_record = db.query(ZerodhaApiKey).filter(
-            ZerodhaApiKey.zerodha_user_id == zerodha_user_id,
-            ZerodhaApiKey.is_active == True
-        ).first()
-        
-        if not api_key_record:
-            raise HTTPException(status_code=404, detail="API key not found for this user")
-        
-        return api_key_record.to_dict()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get API key: {str(e)}")
+        # Security: Never log API keys or secrets in error messages
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to save API key to .env file: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail="Failed to save API key to .env file")
 
 
 @router.get("/api-keys")
 async def get_all_api_keys(db: Session = Depends(get_db)):
-    """Get all API keys (without exposing secrets)"""
-    try:
-        api_keys = db.query(ZerodhaApiKey).filter(
-            ZerodhaApiKey.is_active == True
-        ).all()
-        
-        return {"api_keys": [key.to_dict() for key in api_keys]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get API keys: {str(e)}")
+    """
+    Get API key configuration status (without exposing secrets).
+    
+    Per R-SM-7: Secrets are never returned in API responses.
+    This endpoint confirms if API keys are configured and returns user IDs from account_details.
+    """
+    import os
+    from pathlib import Path
+    from dotenv import load_dotenv
+    
+    # Reload .env file to get latest values
+    env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
+    
+    api_key_configured = bool(os.getenv("ZERODHA_API_KEY"))
+    api_secret_configured = bool(os.getenv("ZERODHA_API_SECRET"))
+    
+    # For UI compatibility, return structure that includes user IDs from account_details
+    # Since API key is shared (from env var), we return user IDs from frontend's account_details
+    # The frontend will populate these from localStorage
+    return {
+        "api_keys": [{
+            "zerodha_user_id": "shared",  # API key is shared, not per-user
+            "api_key": "***" if api_key_configured else None,
+            "api_secret": "***",  # Never expose secret
+            "is_active": api_key_configured and api_secret_configured,
+            "configured": api_key_configured and api_secret_configured
+        }] if api_key_configured and api_secret_configured else [],
+        "configured": api_key_configured and api_secret_configured
+    }
 
 
-@router.delete("/api-keys/{zerodha_user_id}")
-async def delete_api_key(zerodha_user_id: str, db: Session = Depends(get_db)):
-    """Delete (deactivate) API key for a user"""
-    try:
-        api_key_record = db.query(ZerodhaApiKey).filter(
-            ZerodhaApiKey.zerodha_user_id == zerodha_user_id
-        ).first()
-        
-        if not api_key_record:
-            raise HTTPException(status_code=404, detail="API key not found for this user")
-        
-        api_key_record.is_active = False
-        db.commit()
-        
-        return {"message": "API key deactivated successfully", "zerodha_user_id": zerodha_user_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete API key: {str(e)}")
+@router.get("/api-keys/{zerodha_user_id}")
+async def get_api_key(zerodha_user_id: str, db: Session = Depends(get_db)):
+    """
+    Get API key configuration status for a user (without exposing secrets).
+    
+    Per R-SM-7: Secrets are never returned in API responses.
+    The API key is shared (from environment variables), not per-user.
+    """
+    import os
+    from pathlib import Path
+    from dotenv import load_dotenv
+    
+    # Reload .env file to get latest values
+    env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
+    
+    api_key_configured = bool(os.getenv("ZERODHA_API_KEY"))
+    api_secret_configured = bool(os.getenv("ZERODHA_API_SECRET"))
+    
+    if not api_key_configured or not api_secret_configured:
+        raise HTTPException(status_code=404, detail="API key not configured. Please set ZERODHA_API_KEY and ZERODHA_API_SECRET in .env file or via Settings UI.")
+    
+    return {
+        "zerodha_user_id": zerodha_user_id,
+        "api_key": "***",  # Never expose actual key
+        "api_secret": "***",  # Never expose secret
+        "is_active": True,
+        "configured": True,
+        "note": "API key is shared across all accounts (configured via environment variables in .env file)"
+    }
 
 
 @router.post("/place-order")

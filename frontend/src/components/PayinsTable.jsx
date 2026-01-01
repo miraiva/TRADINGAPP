@@ -37,9 +37,8 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
 
   // Initial fetch on mount - always fetch regardless of userId
   useEffect(() => {
-    console.log('PayinsTable - Component mounted, initializing...');
-    console.log('PayinsTable - Current zerodhaUserId prop:', zerodhaUserId);
-    console.log('PayinsTable - Fetch in progress check:', fetchInProgressRef.current);
+    // Reduced logging - component mount is routine
+    // console.log('PayinsTable - Component mounted, initializing...');
     
     // Always fetch on mount, even if userId is null (we want all payins)
     const initFetch = async () => {
@@ -47,10 +46,7 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
       await new Promise(resolve => setTimeout(resolve, 50));
       
       if (!fetchInProgressRef.current) {
-        console.log('PayinsTable - Calling fetchPayins on mount...');
         fetchPayins();
-      } else {
-        console.log('PayinsTable - Fetch already in progress, skipping initial fetch');
       }
     };
     
@@ -65,7 +61,8 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
     // Only refetch if userId is explicitly provided and changed
     // Don't refetch if userId is null (we show all payins)
     if (zerodhaUserId && !fetchInProgressRef.current) {
-      console.log('PayinsTable - zerodhaUserId prop changed, refetching...', zerodhaUserId);
+      // Reduced logging - userId changes are routine
+      // console.log('PayinsTable - zerodhaUserId prop changed, refetching...', zerodhaUserId);
       fetchPayins();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,7 +113,8 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
       // Only update if view actually changed
       if (newView !== view) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('PayinsTable - View changed to:', newView);
+          // Reduced logging - view changes are routine
+        // console.log('PayinsTable - View changed to:', newView);
         }
         // Debounce view changes
         if (viewChangeTimeout) {
@@ -182,15 +180,18 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
   const fetchPayins = useCallback(async () => {
     // Prevent duplicate concurrent requests
     if (fetchInProgressRef.current) {
-      console.log('PayinsTable - Fetch already in progress, skipping...');
+      // Reduced logging - concurrent requests are handled silently
+      // console.log('PayinsTable - Fetch already in progress, skipping...');
       return;
     }
 
-    console.log('PayinsTable - fetchPayins called, starting request...');
+    // Reduced logging - fetch calls are routine
+    // console.log('PayinsTable - fetchPayins called, starting request...');
 
     // Cancel any previous request (but don't create new one if we're already fetching)
     if (abortControllerRef.current && !fetchInProgressRef.current) {
-      console.log('PayinsTable - Aborting previous request');
+      // Reduced logging - request cancellation is routine
+      // console.log('PayinsTable - Aborting previous request');
       abortControllerRef.current.abort();
     }
 
@@ -203,7 +204,8 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
       setLoading(true);
       setError(null);
       
-      console.log('PayinsTable - Starting to fetch payins...');
+      // Reduced logging - data fetching is routine
+      // console.log('PayinsTable - Starting to fetch payins...');
       
       // Always fetch ALL payins - filtering by view/strategy happens in filteredPayins
       // Don't filter by zerodhaUserId at the API level, let frontend handle filtering
@@ -212,32 +214,22 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
       
       // Check if request was aborted (only if it's still the current request)
       if (currentAbortController?.signal.aborted || abortControllerRef.current !== currentAbortController) {
-        console.log('PayinsTable - Request was aborted');
+        // Reduced logging - request cancellations are routine
+        // console.log('PayinsTable - Request was aborted');
         return;
       }
       
-      console.log('PayinsTable - Received data from API:', data);
-      console.log('PayinsTable - Data length:', data?.length || 0);
-      console.log('PayinsTable - Data type:', Array.isArray(data) ? 'Array' : typeof data);
+      // Reduced logging - only log in development mode for debugging
+      // Security: Never log full data which might contain sensitive information
+      if (process.env.NODE_ENV === 'development') {
+        // Only log counts, not full data objects
+        const payinsArray = Array.isArray(data) ? data : (data ? [data] : []);
+        // console.log('PayinsTable - Fetched payins count:', payinsArray.length);
+      }
       
       // Ensure data is an array
       const payinsArray = Array.isArray(data) ? data : (data ? [data] : []);
       setPayins(payinsArray);
-      
-      // Debug logging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('PayinsTable - Fetched payins:', payinsArray.length);
-        console.log('PayinsTable - Current view:', view);
-        console.log('PayinsTable - Fetching ALL payins (no API filter)');
-        if (payinsArray.length > 0) {
-          const uu6974Payins = payinsArray.filter(p => p.zerodha_user_id === 'UU6974');
-          console.log('PayinsTable - UU6974 payins found:', uu6974Payins.length, uu6974Payins);
-          const allUserIds = [...new Set(payinsArray.map(p => p.zerodha_user_id).filter(Boolean))];
-          console.log('PayinsTable - All user IDs in fetched payins:', allUserIds);
-        } else {
-          console.warn('PayinsTable - No payins returned from API');
-        }
-      }
     } catch (err) {
       // Don't show error if request was aborted
       if (err.name === 'AbortError' || currentAbortController?.signal.aborted || abortControllerRef.current !== currentAbortController) {
@@ -246,11 +238,9 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
       }
       const errorMessage = err.response?.data?.detail || err.message || 'Failed to load payins. Please try again.';
       setError(errorMessage);
-      console.error('PayinsTable - Error fetching payins:', err);
-      console.error('PayinsTable - Error name:', err.name);
-      console.error('PayinsTable - Error message:', err.message);
-      console.error('PayinsTable - Error code:', err.code);
-      console.error('PayinsTable - Error response:', err.response);
+      // Security: Don't log full error objects which might contain sensitive data
+      // Only log error type and safe error message
+      console.error('PayinsTable - Error fetching payins:', err.name, err.message);
       setPayins([]);
     } finally {
       // Only update state if this is still the current request
@@ -283,53 +273,30 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
       const longTermIds = getAccountIdsByStrategy('LONG_TERM');
       accountIds = Array.from(new Set([...swingIds, ...longTermIds])); // Use Set to avoid duplicates
       
-      // Debug logging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('PayinsTable OVERALL - Swing IDs:', swingIds);
-        console.log('PayinsTable OVERALL - Long Term IDs:', longTermIds);
-        console.log('PayinsTable OVERALL - Combined IDs:', accountIds);
-        console.log('PayinsTable OVERALL - Total payins before filter:', payins.length);
-        const uu6974Payins = payins.filter(p => p.zerodha_user_id === 'UU6974');
-        console.log('PayinsTable OVERALL - UU6974 payins before filter:', uu6974Payins);
-        console.log('PayinsTable OVERALL - Is UU6974 in accountIds?', accountIds.includes('UU6974'));
-      }
+      // Reduced logging - debug statements removed for production cleanliness
+      // Filtering logic is working correctly, no need to log every filter operation
     } else {
       // For SWING or LONG_TERM, get accounts for that strategy
       accountIds = getAccountIdsByStrategy(view === 'LONG_TERM' ? 'LONG_TERM' : 'SWING');
       
-      // Debug logging
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`PayinsTable ${view} - Account IDs:`, accountIds);
-        console.log(`PayinsTable ${view} - Total payins before filter:`, payins.length);
-        const uu6974Payins = payins.filter(p => p.zerodha_user_id === 'UU6974');
-        console.log(`PayinsTable ${view} - UU6974 payins before filter:`, uu6974Payins);
-        console.log(`PayinsTable ${view} - Is UU6974 in accountIds?`, accountIds.includes('UU6974'));
-      }
+      // Reduced logging - debug statements removed for production cleanliness
     }
     
     // If no account IDs found for the view, fallback to all accounts with tokens
     // This ensures payins show even if accounts aren't classified in account_details yet
     if (accountIds.length === 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('PayinsTable - No account IDs found for view:', view, '- falling back to all connected accounts');
-      }
+      // Reduced logging - fallback operations are routine
       // Get all accounts that have tokens (connected accounts)
       try {
         const tokensJson = localStorage.getItem('zerodha_account_tokens');
         const tokens = tokensJson ? JSON.parse(tokensJson) : {};
         accountIds = Object.keys(tokens);
-        if (process.env.NODE_ENV === 'development') {
-          console.log('PayinsTable - Using all connected accounts as fallback:', accountIds);
-        }
       } catch {
         // If still no accounts from tokens, try to get all unique user IDs from payins
         // This is a last resort fallback - show all payins that have a user_id
         const allPayinUserIds = [...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))];
         if (allPayinUserIds.length > 0) {
           accountIds = allPayinUserIds;
-          if (process.env.NODE_ENV === 'development') {
-            console.log('PayinsTable - Using all user IDs from payins as fallback:', accountIds);
-          }
         } else {
           // If still no accounts, return empty to show "no payins" state
           return [];
@@ -351,29 +318,12 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
     // Final fallback: if filtering resulted in 0 payins but we have payins, show all payins
     // This can happen if account configuration doesn't match the actual payin user IDs
     if (filtered.length === 0 && payins.length > 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('PayinsTable - Filtering resulted in 0 payins, showing all payins as fallback');
-        console.warn('PayinsTable - Account IDs looked for:', accountIds);
-        console.warn('PayinsTable - User IDs in payins:', [...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))]);
-      }
+      // Reduced logging - fallback operations are routine
       // Return all payins that have a user_id (exclude null/undefined)
       return payins.filter(p => p.zerodha_user_id);
     }
     
-    // Debug logging
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`PayinsTable ${view} - Filtered payins count:`, filtered.length);
-      const uu6974Filtered = filtered.filter(p => {
-        const id = p.zerodha_user_id?.trim().toUpperCase();
-        return id === 'UU6974';
-      });
-      console.log(`PayinsTable ${view} - UU6974 payins after filter:`, uu6974Filtered);
-      
-      // Also log all unique user IDs in the fetched payins to help debug
-      const allUserIds = [...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))];
-      console.log(`PayinsTable ${view} - All user IDs in fetched payins:`, allUserIds);
-      console.log(`PayinsTable ${view} - Account IDs to match:`, accountIds);
-    }
+    // Reduced logging - filtering operations are routine and don't need logging
     
     return filtered;
   }, [payins, view]);
@@ -381,18 +331,11 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
   const sortedPayins = React.useMemo(() => {
     let sorted = [...filteredPayins];
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('PayinsTable - sortedPayins useMemo running:', {
-        filteredPayinsLength: filteredPayins.length,
-        searchTerm: searchTerm,
-        sortConfig: sortConfig
-      });
-    }
+    // Reduced logging - sorting/searching operations are routine
 
     // Apply search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      const beforeSearch = sorted.length;
       sorted = sorted.filter(payin => {
         return (
           (payin.paid_by && payin.paid_by.toLowerCase().includes(searchLower)) ||
@@ -400,9 +343,7 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
           (payin.zerodha_user_id && payin.zerodha_user_id.toLowerCase().includes(searchLower))
         );
       });
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`PayinsTable - Search filter: ${beforeSearch} -> ${sorted.length} (search: "${searchTerm}")`);
-      }
+      // Reduced logging - search filtering is routine
     }
 
     // Apply sorting
@@ -434,7 +375,8 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log(`PayinsTable - sortedPayins result: ${sorted.length} payins`);
+      // Reduced logging - sorting result is not critical
+      // console.log(`PayinsTable - sortedPayins result: ${sorted.length} payins`);
     }
 
     return sorted;
@@ -494,7 +436,8 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
     } catch (err) {
       const errorMessage = err.response?.data?.detail || err.message || 'Failed to delete payin';
       alert(`Error deleting payin: ${errorMessage}`);
-      console.error('Error deleting payin:', err);
+      // Security: Don't log full error objects which might contain sensitive data
+      console.error('Error deleting payin:', err.name, err.message);
     }
   };
 

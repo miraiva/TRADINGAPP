@@ -34,27 +34,15 @@ class ZerodhaWebSocketManager:
         self.is_connected = False
         self.callbacks = []
         
-        # Get user-specific API key from database
-        api_key = None
-        if db:
-            try:
-                from app.models.zerodha_api_key import ZerodhaApiKey
-                api_key_record = db.query(ZerodhaApiKey).filter(
-                    ZerodhaApiKey.zerodha_user_id == user_id,
-                    ZerodhaApiKey.is_active == True
-                ).first()
-                
-                if api_key_record:
-                    api_key = api_key_record.api_key
-            except Exception as e:
-                logger.warning(f"Error getting API key from database: {e}")
-        
-        # Fallback to environment variable
-        if not api_key:
-            api_key = os.getenv("ZERODHA_API_KEY")
+        # R-SM-2, R-SM-3: API key comes from environment variables only, never database
+        # The db and user_id parameters are kept for API compatibility but not used for key lookup
+        api_key = os.getenv("ZERODHA_API_KEY")
         
         if not api_key:
-            raise ValueError(f"API key not configured for user {user_id}")
+            raise ValueError(
+                "ZERODHA_API_KEY environment variable not configured. "
+                "Please set ZERODHA_API_KEY in your environment before starting the application."
+            )
         
         # Initialize KiteTicker
         self.kws = KiteTicker(api_key, access_token)

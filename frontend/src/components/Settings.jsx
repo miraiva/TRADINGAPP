@@ -188,25 +188,23 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
   const handleEditAccount = async (account) => {
     setEditingAccount(account.user_id);
     
-    // Try to load API key from backend first
+    // R-SM-2: API keys are saved to .env file via backend, not database
+    // Try to load from backend first, then fallback to localStorage
     let apiKey = account.api_key || '';
     let secretKey = account.secret_key || '';
     
     try {
       const apiKeyData = await zerodhaAPI.getApiKey(account.user_id);
-      if (apiKeyData && apiKeyData.api_key) {
-        // API key exists in backend, but we can't retrieve the secret for security
-        // So we keep the existing secret_key from localStorage if available
-        apiKey = apiKeyData.api_key;
-        // Only update secret if we don't have one in localStorage
-        if (!secretKey) {
-          // We can't retrieve secret from backend, so leave it empty
-          // User will need to re-enter it if they want to update
-        }
+      if (apiKeyData && apiKeyData.configured) {
+        // API key is configured in .env file (but we can't retrieve actual values for security)
+        // If we don't have values in localStorage, leave empty so user can enter new values
+        // Don't show placeholder as it would interfere with editing
+        // The form will work if user enters values
       }
     } catch (error) {
-      // API key not found in backend, use localStorage values
-      console.log('API key not found in backend, using localStorage values');
+      // API key not configured in .env file, use localStorage values
+      // Reduced logging - configuration fallback is expected behavior
+      // console.log('API key not configured in .env file, using localStorage values if available');
     }
     
     setAccountForm({
@@ -226,17 +224,23 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
       return;
     }
 
-    // Save API keys to backend if provided
+    // R-SM-2: Save API keys to .env file via backend (not database)
+    // Save if both values are provided
     if (accountForm.api_key && accountForm.secret_key) {
       try {
         await zerodhaAPI.saveApiKey(
           accountForm.user_id,
-          accountForm.api_key,
-          accountForm.secret_key
+          accountForm.api_key.trim(),
+          accountForm.secret_key.trim()
         );
+        alert('API key saved successfully to .env file. Restart the backend server for changes to take full effect.');
       } catch (error) {
-        console.error('Error saving API key to backend:', error);
-        alert(`Failed to save API key to backend: ${error.response?.data?.detail || error.message}`);
+        // Security: Don't log full error which might contain sensitive data
+        console.error('Error saving API key to .env file');
+        const errorMsg = error.response?.data?.detail || error.message || 'Unknown error';
+        // Remove any potential sensitive data from error message
+        const safeErrorMsg = errorMsg.replace(/api[_\s]?key|secret|token/gi, '[REDACTED]');
+        alert(`Failed to save API key to .env file: ${safeErrorMsg}`);
         // Continue with localStorage save anyway
       }
     }
@@ -412,6 +416,21 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
                   {editingAccount ? 'Edit Account' : 'Add New Account'}
                 </h4>
                 
+                {/* R-SM-2: Secrets Management Notice inside form */}
+                <div style={{ 
+                  backgroundColor: '#dbeafe', 
+                  border: '1px solid #3b82f6', 
+                  borderRadius: '8px', 
+                  padding: '1rem', 
+                  marginBottom: '1.5rem' 
+                }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.875rem', fontWeight: '600', color: '#1e40af' }}>🔐 API Key Configuration</h4>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#1e3a8a', lineHeight: '1.5' }}>
+                    API keys are saved to the <code style={{ fontSize: '0.75rem', backgroundColor: '#bfdbfe', padding: '0.125rem 0.25rem', borderRadius: '3px' }}>.env</code> file (not database) for security.<br/>
+                    <strong>After saving, restart the backend server</strong> for changes to take full effect.
+                  </p>
+                </div>
+                
                 <div className="form-group">
                   <label htmlFor="account_user_id">Account ID (User ID) *</label>
                   <input
@@ -444,7 +463,7 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="account_api_key">API Key</label>
+                  <label htmlFor="account_api_key">API Key *</label>
                   <input
                     type="text"
                     id="account_api_key"
@@ -452,15 +471,16 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
                     value={accountForm.api_key}
                     onChange={handleAccountFormChange}
                     className="form-input"
-                    placeholder="Zerodha API Key (optional for OAuth accounts)"
+                    placeholder="Enter Zerodha API Key (saved to .env file)"
+                    required
                   />
                   <p className="form-hint">
-                    API Key is optional if using OAuth authentication
+                    Required for Zerodha OAuth authentication. Saved to .env file (not database).
                   </p>
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="account_secret_key">Secret Key</label>
+                  <label htmlFor="account_secret_key">Secret Key *</label>
                   <input
                     type="password"
                     id="account_secret_key"
@@ -468,10 +488,11 @@ const Settings = ({ onClose, onImportComplete, inSlider = false }) => {
                     value={accountForm.secret_key}
                     onChange={handleAccountFormChange}
                     className="form-input"
-                    placeholder="Secret Key (optional)"
+                    placeholder="Enter Secret Key (saved to .env file)"
+                    required
                   />
                   <p className="form-hint">
-                    Secret Key is optional and stored securely
+                    Required for Zerodha OAuth authentication. Saved to .env file (not database). Restart backend after saving.
                   </p>
                 </div>
 

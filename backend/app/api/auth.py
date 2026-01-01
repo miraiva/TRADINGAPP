@@ -116,7 +116,8 @@ async def google_oauth_callback(
             )
             
             if token_response.status_code != 200:
-                logger.error(f"Google token exchange failed: {token_response.text}")
+                # Security: Don't log full token response which might contain sensitive data
+                logger.error(f"Google token exchange failed: {token_response.status_code}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Failed to exchange authorization code for token"
