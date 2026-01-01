@@ -159,7 +159,7 @@ export const zerodhaAPI = {
     });
     return response.data;
   },
-  // R-SM-2: API keys are saved to .env file (not database) via UI
+  // API keys are saved to database via UI
   saveApiKey: async (zerodhaUserId, apiKey, apiSecret) => {
     const response = await api.post('/api/zerodha/api-keys', {
       zerodha_user_id: zerodhaUserId,
@@ -177,9 +177,9 @@ export const zerodhaAPI = {
     return response.data;
   },
   deleteApiKey: async (zerodhaUserId) => {
-    // Deletion not supported - secrets are managed via .env file
-    // User should manually edit .env file or use saveApiKey to update
-    throw new Error('API key deletion via UI not supported. Update via Settings or edit .env file directly.');
+    // Deletion not currently supported via UI
+    // User should use saveApiKey to update/clear values
+    throw new Error('API key deletion via UI not supported. Update via Settings to change values.');
   },
   placeOrder: async (orderData) => {
     const response = await api.post('/api/zerodha/place-order', orderData);
