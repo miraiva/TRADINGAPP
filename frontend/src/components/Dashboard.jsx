@@ -259,8 +259,23 @@ const Dashboard = ({ refreshKey = 0, onBuyClick }) => {
       accountIds = getAccountIdsByStrategy(view === 'LONG_TERM' ? 'LONG_TERM' : 'SWING');
     }
     
+    // If no account IDs found, fallback to showing all payins with user IDs
+    // This ensures data shows even when account_details haven't been configured
     if (accountIds.length === 0) {
-      return [];
+      // Try to get all accounts from tokens
+      try {
+        const tokensJson = localStorage.getItem('zerodha_account_tokens');
+        const tokens = tokensJson ? JSON.parse(tokensJson) : {};
+        accountIds = Object.keys(tokens);
+      } catch {
+        // If still no accounts, get unique user IDs from payins data itself
+        const uniqueUserIds = [...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))];
+        if (uniqueUserIds.length > 0) {
+          accountIds = uniqueUserIds;
+        } else {
+          return [];
+        }
+      }
     }
     
     const filtered = payins.filter(payin => {

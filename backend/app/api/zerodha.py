@@ -47,6 +47,7 @@ class ExchangeTokenWithUserIdRequest(BaseModel):
 
 
 @router.get("/login-url")
+@router.options("/login-url")  # Explicitly handle OPTIONS for CORS preflight
 async def get_login_url(
     zerodha_user_id: Optional[str] = Query(None, description="Zerodha User ID to get login URL for"),
     db: Session = Depends(get_db)
@@ -62,6 +63,7 @@ async def get_login_url(
 
 
 @router.post("/login-url")
+@router.options("/login-url")  # Explicitly handle OPTIONS for CORS preflight
 async def get_login_url_post(request: LoginUrlRequest, db: Session = Depends(get_db)):
     """Get Zerodha OAuth login URL for a specific user (POST method)"""
     try:
@@ -186,6 +188,7 @@ async def exchange_token_with_user(request: ExchangeTokenWithUserIdRequest, db: 
 
 
 @router.post("/api-keys")
+@router.options("/api-keys")  # Explicitly handle OPTIONS for CORS preflight
 async def save_api_key(request: ApiKeyRequest, db: Session = Depends(get_db)):
     """Save or update API key for a user in database"""
     try:
