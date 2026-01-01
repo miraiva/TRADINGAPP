@@ -254,10 +254,11 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
             return { accessToken: oldToken, userId: oldUserId };
           }
           
-          // No token found at all
-          console.warn('TradesTable: No access token found in any storage location');
-          console.warn('TradesTable: Available tokens:', Object.keys(tokens));
-          console.warn('TradesTable: Default account:', defaultAccount);
+          // No token found at all - this is expected if user hasn't connected Zerodha yet
+          // Only log in development to reduce console noise
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('TradesTable: No access token found - connect Zerodha account for real-time price updates');
+          }
           return { accessToken: null, userId: null };
         }
         
@@ -321,11 +322,17 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
       if (!accessToken) {
         if (retryCount < maxRetries) {
           retryCount++;
-          console.log(`TradesTable: No access token available, retrying in ${retryDelay}ms (attempt ${retryCount}/${maxRetries})`);
+          // Only log retries in development to reduce console noise
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`TradesTable: No access token available, retrying in ${retryDelay}ms (attempt ${retryCount}/${maxRetries})`);
+          }
           setTimeout(tryConnect, retryDelay);
           return;
         } else {
-          console.warn('TradesTable: No access token available for WebSocket connection after retries');
+          // This is expected if user hasn't connected Zerodha - only log in development
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('TradesTable: No access token available for WebSocket connection. Connect Zerodha account for real-time updates.');
+          }
           return;
         }
       }
@@ -462,7 +469,10 @@ const TradesTable = ({ trades: propTrades = null, loading: propLoading = null, f
     // Use market data account token for price updates
     const marketDataToken = getMarketDataToken();
     if (!marketDataToken) {
-      console.warn('TradesTable: No market data token available for periodic price updates');
+      // This is expected if user hasn't connected Zerodha - only log in development
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('TradesTable: No market data token available for periodic price updates');
+      }
       return;
     }
 
