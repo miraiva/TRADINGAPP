@@ -253,6 +253,7 @@ def bulk_update_references(
 
 
 @router.post("/populate")
+@router.get("/populate")  # Also support GET to avoid CORS preflight issues
 def populate_references(
     force_refresh: bool = Query(False, description="Force refresh existing data"),
     db: Session = Depends(get_db)
