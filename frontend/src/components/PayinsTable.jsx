@@ -261,7 +261,8 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
 
   // Filter payins based on selected view
   const filteredPayins = React.useMemo(() => {
-    if (!payins || payins.length === 0) return [];
+    // Safety check: ensure payins is always an array
+    if (!Array.isArray(payins) || payins.length === 0) return [];
     
     // Get account IDs based on view
     let accountIds = [];
@@ -294,11 +295,15 @@ const PayinsTable = ({ zerodhaUserId = null, searchTerm: externalSearchTerm = ''
       } catch {
         // If still no accounts from tokens, try to get all unique user IDs from payins
         // This is a last resort fallback - show all payins that have a user_id
-        const allPayinUserIds = [...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))];
-        if (allPayinUserIds.length > 0) {
-          accountIds = allPayinUserIds;
+        if (Array.isArray(payins)) {
+          const allPayinUserIds = [...new Set(payins.map(p => p.zerodha_user_id).filter(Boolean))];
+          if (allPayinUserIds.length > 0) {
+            accountIds = allPayinUserIds;
+          } else {
+            // If still no accounts, return empty to show "no payins" state
+            return [];
+          }
         } else {
-          // If still no accounts, return empty to show "no payins" state
           return [];
         }
       }
