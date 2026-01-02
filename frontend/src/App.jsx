@@ -17,13 +17,33 @@ import { getAccountDetails, syncAccountDetailsFromDatabase } from './utils/accou
 import './App.css'
 
 function App() {
+  // Check authentication synchronously on initial render
+  const checkAuthSync = () => {
+    const token = localStorage.getItem('auth_token')
+    const userStr = localStorage.getItem('user')
+    
+    if (token && userStr) {
+      try {
+        const userData = JSON.parse(userStr)
+        return { authenticated: true, user: userData }
+      } catch (err) {
+        // Invalid user data, clear it
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('user')
+        return { authenticated: false, user: null }
+      }
+    }
+    return { authenticated: false, user: null }
+  }
+
+  const initialAuth = checkAuthSync()
   const [refreshKey, setRefreshKey] = useState(0)
   const [sliderOpen, setSliderOpen] = useState(false)
   const [sliderContent, setSliderContent] = useState(null)
   const [sliderTitle, setSliderTitle] = useState('')
   const [headerSubtitle, setHeaderSubtitle] = useState('')
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [user, setUser] = useState(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(initialAuth.authenticated)
+  const [user, setUser] = useState(initialAuth.user)
 
   // Get header subtitle based on demo mode and user name
   const updateHeaderSubtitle = () => {
@@ -67,29 +87,11 @@ function App() {
     }
   }
 
-  // Check authentication on mount
+  // Verify authentication token is still valid (optional - can check with backend)
   useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('auth_token')
-      const userStr = localStorage.getItem('user')
-      
-      if (token && userStr) {
-        try {
-          const userData = JSON.parse(userStr)
-          setUser(userData)
-          setIsAuthenticated(true)
-        } catch (err) {
-          console.error('Error parsing user data:', err)
-          localStorage.removeItem('auth_token')
-          localStorage.removeItem('user')
-          setIsAuthenticated(false)
-        }
-      } else {
-        setIsAuthenticated(false)
-      }
-    }
-    
-    checkAuth()
+    // If we have a token, we could verify it with the backend here
+    // For now, we'll just rely on the token being present
+    // The API interceptor will handle 401 errors and clear the token
   }, [])
 
   // Sync account details from database on mount (only if authenticated)
