@@ -90,16 +90,46 @@ async def get_snapshots(
         query = db.query(PortfolioSnapshot)
         
         # Support both single user_id and multiple user_ids
-        if zerodha_user_ids:
-            # Parse comma-separated user IDs
-            user_id_list = [uid.strip() for uid in zerodha_user_ids.split(',') if uid.strip()]
-            if user_id_list:
-                query = query.filter(PortfolioSnapshot.zerodha_user_id.in_(user_id_list))
-        elif zerodha_user_id:
-            query = query.filter(PortfolioSnapshot.zerodha_user_id == zerodha_user_id)
-        
+        # When trading_strategy is provided, we need to include:
+        # 1. Aggregated snapshots (zerodha_user_id IS NULL) for the strategy
+        # 2. Account-specific snapshots (zerodha_user_id IN list) for the strategy
         if trading_strategy:
-            query = query.filter(PortfolioSnapshot.trading_strategy == trading_strategy)
+            if zerodha_user_ids:
+                # Parse comma-separated user IDs
+                user_id_list = [uid.strip() for uid in zerodha_user_ids.split(',') if uid.strip()]
+                if user_id_list:
+                    # Include both aggregated snapshots (NULL user_id) and account-specific snapshots
+                    query = query.filter(
+                        PortfolioSnapshot.trading_strategy == trading_strategy,
+                        or_(
+                            PortfolioSnapshot.zerodha_user_id.is_(None),  # Aggregated snapshots
+                            PortfolioSnapshot.zerodha_user_id.in_(user_id_list)  # Account-specific
+                        )
+                    )
+                else:
+                    # No account IDs provided, just filter by strategy
+                    query = query.filter(PortfolioSnapshot.trading_strategy == trading_strategy)
+            elif zerodha_user_id:
+                # Single user_id with strategy - include both aggregated and specific
+                query = query.filter(
+                    PortfolioSnapshot.trading_strategy == trading_strategy,
+                    or_(
+                        PortfolioSnapshot.zerodha_user_id.is_(None),  # Aggregated snapshots
+                        PortfolioSnapshot.zerodha_user_id == zerodha_user_id  # Account-specific
+                    )
+                )
+            else:
+                # Just filter by strategy (includes aggregated snapshots)
+                query = query.filter(PortfolioSnapshot.trading_strategy == trading_strategy)
+        else:
+            # No trading_strategy filter - use account filters only
+            if zerodha_user_ids:
+                # Parse comma-separated user IDs
+                user_id_list = [uid.strip() for uid in zerodha_user_ids.split(',') if uid.strip()]
+                if user_id_list:
+                    query = query.filter(PortfolioSnapshot.zerodha_user_id.in_(user_id_list))
+            elif zerodha_user_id:
+                query = query.filter(PortfolioSnapshot.zerodha_user_id == zerodha_user_id)
         
         if start_date:
             query = query.filter(PortfolioSnapshot.snapshot_date >= start_date)

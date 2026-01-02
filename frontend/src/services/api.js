@@ -72,8 +72,10 @@ const getTradingAccountToken = (accountId = null) => {
 // Trades API
 export const tradesAPI = {
   // Get all trades
-  getAllTrades: async (status = null, useLongTimeout = false) => {
-    const params = status ? { status } : {};
+  getAllTrades: async (status = null, zerodhaUserId = null, useLongTimeout = false) => {
+    const params = {};
+    if (status) params.status = status;
+    if (zerodhaUserId) params.zerodha_user_id = zerodhaUserId;
     const client = useLongTimeout ? dashboardApi : api;
     const response = await client.get('/api/trades/', { params });
     return response.data;
@@ -443,11 +445,11 @@ export const referenceDataAPI = {
   },
 };
 
-// Snapshot API
+// Snapshot API - Use dashboardApi for longer timeout (60s) since snapshots can be large
 export const snapshotAPI = {
-  // Get all snapshots
+  // Get all snapshots - use dashboardApi for 60s timeout
   getSnapshots: async (params = {}) => {
-    const response = await api.get('/api/snapshots/', { params });
+    const response = await dashboardApi.get('/api/snapshots/', { params });
     return response.data;
   },
 
