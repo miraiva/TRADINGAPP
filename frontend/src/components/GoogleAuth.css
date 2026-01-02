@@ -52,9 +52,12 @@
   width: 120px;
   height: 120px;
   object-fit: contain;
-  /* Remove filter to show logo in original colors */
+  background: transparent;
+  /* Remove any filters that might add white background */
   filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.2));
   transition: transform 0.3s ease;
+  /* Ensure transparent background is preserved */
+  mix-blend-mode: normal;
 }
 
 .logo-image-large:hover {

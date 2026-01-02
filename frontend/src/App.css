@@ -59,6 +59,8 @@ body {
   object-fit: contain;
   opacity: 0.95;
   transition: opacity 0.2s;
+  background: transparent;
+  /* Ensure transparent background is preserved */
 }
 
 .header-logo-right:hover {
