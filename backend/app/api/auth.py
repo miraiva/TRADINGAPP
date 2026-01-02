@@ -201,17 +201,31 @@ async def google_oauth_callback(
             user = db.query(User).filter(User.google_id == google_id).first()
             
             if user:
+                # Verify email matches exactly (case-sensitive check for security)
+                if user.email.lower() != email.lower():
+                    logger.warning(f"Email mismatch for user {user.id}: DB has '{user.email}', Google returned '{email}'")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Access denied. Email mismatch detected. Please contact the administrator."
+                    )
                 # Update existing user (found by google_id)
-                user.email = email
+                user.email = email  # Update to ensure exact case match
                 user.name = name
                 user.picture = picture
                 user.last_login = datetime.utcnow()
                 logger.info(f"Updated existing user (by google_id): {email}")
             else:
-                # If not found by google_id, check by email (for users created by migration script)
-                user = db.query(User).filter(User.email == email).first()
+                # If not found by google_id, check by email (case-insensitive for lookup, but verify exact match)
+                # Use func.lower for case-insensitive comparison
+                from sqlalchemy import func
+                user = db.query(User).filter(func.lower(User.email) == email.lower()).first()
                 
                 if user:
+                    # Verify exact email match (case-sensitive) for security
+                    if user.email != email:
+                        logger.warning(f"Email case mismatch: DB has '{user.email}', Google returned '{email}'. Updating to match Google.")
+                        # Update email to match Google's exact case
+                        user.email = email
                     # Update existing user (found by email) - this happens when user logs in for first time after migration
                     user.google_id = google_id
                     user.name = name
