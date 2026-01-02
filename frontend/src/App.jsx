@@ -43,8 +43,9 @@ function App() {
   const [sliderContent, setSliderContent] = useState(null)
   const [sliderTitle, setSliderTitle] = useState('')
   const [headerSubtitle, setHeaderSubtitle] = useState('')
-  const [isAuthenticated, setIsAuthenticated] = useState(initialAuth.authenticated)
-  const [user, setUser] = useState(initialAuth.user)
+  const [isAuthenticated, setIsAuthenticated] = useState(false) // Start as false, verify before showing dashboard
+  const [user, setUser] = useState(null)
+  const [isVerifying, setIsVerifying] = useState(initialAuth.authenticated) // Show loading if we have a token to verify
 
   // Get header subtitle based on demo mode and user name
   const updateHeaderSubtitle = () => {
@@ -96,6 +97,7 @@ function App() {
       if (!token) {
         setIsAuthenticated(false)
         setUser(null)
+        setIsVerifying(false)
         return
       }
       
@@ -115,13 +117,13 @@ function App() {
         localStorage.removeItem('user')
         setIsAuthenticated(false)
         setUser(null)
+      } finally {
+        setIsVerifying(false)
       }
     }
     
-    // Only verify if we initially thought we were authenticated
-    if (initialAuth.authenticated) {
-      verifyToken()
-    }
+    // Always verify token on mount if one exists
+    verifyToken()
   }, [])
 
   // Sync account details from database on mount (only if authenticated)
@@ -311,6 +313,23 @@ function App() {
   const handleLoginSuccess = (userData) => {
     setUser(userData)
     setIsAuthenticated(true)
+    setIsVerifying(false)
+  }
+
+  // Show loading state while verifying token
+  if (isVerifying) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh',
+        flexDirection: 'column',
+        gap: '1rem'
+      }}>
+        <div>Verifying authentication...</div>
+      </div>
+    )
   }
 
   // Show login page if not authenticated
