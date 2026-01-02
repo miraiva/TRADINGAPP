@@ -112,36 +112,8 @@ const GoogleAuth = ({ onLoginSuccess }) => {
       {/* Left Panel - Promotional Section */}
       <div className="login-left-panel">
         <div className="left-panel-content">
-          {/* Logo and Elevator Pitch */}
+          {/* Elevator Pitch */}
           <div className="elevator-pitch">
-            {/* Logo */}
-            <div className="left-panel-logo">
-              <img 
-                src="/logo.png" 
-                alt="Swing Edge Logo" 
-                className="logo-image-large"
-                onLoad={(e) => {
-                  // Hide fallback when image loads successfully
-                  const fallback = e.target.nextElementSibling;
-                  if (fallback) {
-                    fallback.style.display = 'none';
-                  }
-                }}
-                onError={(e) => {
-                  // Hide the broken image and show fallback
-                  e.target.style.display = 'none';
-                  const fallback = e.target.nextElementSibling;
-                  if (fallback) {
-                    fallback.style.display = 'flex';
-                  }
-                }}
-              />
-              {/* Fallback logo if image doesn't load */}
-              <div className="logo-fallback">
-                <div className="logo-fallback-icon">SE</div>
-              </div>
-            </div>
-            
             <h1 className="pitch-heading">
               <span className="pitch-heading-light">We Are</span>
               <br />
