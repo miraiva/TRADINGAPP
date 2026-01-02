@@ -12,6 +12,7 @@ import ActionSidePanel from './components/ActionSidePanel'
 import SliderPanel from './components/SliderPanel'
 import DecisionAssistant from './components/DecisionAssistant'
 import GoogleAuth from './components/GoogleAuth'
+import { api } from './services/api'
 import { getDemoMode } from './utils/displayUtils'
 import { getAccountDetails, syncAccountDetailsFromDatabase } from './utils/accountUtils'
 import './App.css'
@@ -87,11 +88,40 @@ function App() {
     }
   }
 
-  // Verify authentication token is still valid (optional - can check with backend)
+  // Verify authentication token is still valid with backend
   useEffect(() => {
-    // If we have a token, we could verify it with the backend here
-    // For now, we'll just rely on the token being present
-    // The API interceptor will handle 401 errors and clear the token
+    const verifyToken = async () => {
+      const token = localStorage.getItem('auth_token')
+      
+      if (!token) {
+        setIsAuthenticated(false)
+        setUser(null)
+        return
+      }
+      
+      try {
+        // Verify token with backend
+        const response = await api.get('/api/auth/me')
+        const userData = response.data
+        
+        // Token is valid, update user data
+        setUser(userData)
+        setIsAuthenticated(true)
+        localStorage.setItem('user', JSON.stringify(userData))
+      } catch (err) {
+        // Token is invalid or expired
+        console.log('Token verification failed, clearing auth:', err)
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('user')
+        setIsAuthenticated(false)
+        setUser(null)
+      }
+    }
+    
+    // Only verify if we initially thought we were authenticated
+    if (initialAuth.authenticated) {
+      verifyToken()
+    }
   }, [])
 
   // Sync account details from database on mount (only if authenticated)
