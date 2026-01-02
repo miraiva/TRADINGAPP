@@ -144,8 +144,10 @@ const GoogleAuth = ({ onLoginSuccess }) => {
             
             <h1 className="pitch-heading">
               <span className="pitch-heading-light">We Are</span>
+              <br />
               <span className="pitch-heading-bold">Swing Edge</span>
             </h1>
+            <br />
             <p className="pitch-text">
               Your personal trading companion designed for serious investors. Track your portfolio, 
               analyze performance, and make informed decisions with institutional-grade tools. 
