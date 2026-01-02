@@ -1,32 +1,94 @@
 .google-auth-container {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(to bottom right, #e3f2fd 0%, #ffffff 100%);
   padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Background geometric patterns */
+.google-auth-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    linear-gradient(45deg, rgba(33, 150, 243, 0.03) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(33, 150, 243, 0.03) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(33, 150, 243, 0.03) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(33, 150, 243, 0.03) 75%);
+  background-size: 60px 60px;
+  background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .login-card {
   background: white;
-  border-radius: 12px;
-  padding: 3rem;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  max-width: 400px;
+  border-radius: 16px;
+  padding: 3rem 2.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  max-width: 420px;
   width: 100%;
   text-align: center;
+  position: relative;
+  z-index: 1;
+  margin-bottom: 2rem;
 }
 
-.login-card h2 {
-  margin: 0 0 0.5rem 0;
-  color: #333;
-  font-size: 2rem;
+/* Logo Section */
+.login-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
 }
 
-.login-card p {
-  margin: 0 0 2rem 0;
+.logo-image {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+.logo-text {
+  text-align: left;
+}
+
+.logo-brand {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1565c0;
+  line-height: 1.2;
+  margin-bottom: 0.25rem;
+}
+
+.logo-tagline {
+  font-size: 0.875rem;
   color: #666;
+  font-weight: 400;
+}
+
+/* Welcome Section */
+.welcome-heading {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 0.5rem 0;
+  line-height: 1.2;
+}
+
+.welcome-subtitle {
   font-size: 1rem;
+  color: #666;
+  margin: 0 0 2rem 0;
+  font-weight: 400;
 }
 
 .error-message {
@@ -36,8 +98,10 @@
   border-radius: 8px;
   margin-bottom: 1.5rem;
   font-size: 0.9rem;
+  text-align: left;
 }
 
+/* Google Sign In Button */
 .btn-google-login {
   display: flex;
   align-items: center;
@@ -45,31 +109,89 @@
   gap: 0.75rem;
   width: 100%;
   padding: 0.875rem 1.5rem;
-  background: white;
-  border: 1px solid #dadce0;
+  background: #4285f4;
+  border: none;
   border-radius: 8px;
   font-size: 1rem;
   font-weight: 500;
-  color: #3c4043;
+  color: white;
   cursor: pointer;
   transition: all 0.2s;
+  margin-bottom: 1.5rem;
 }
 
 .btn-google-login:hover {
-  background: #f8f9fa;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: #357ae8;
+  box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+}
+
+.btn-google-login:active {
+  transform: translateY(1px);
 }
 
 .btn-google-login:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
+}
+
+.google-logo-container {
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
 }
 
 .google-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
+/* Footer inside card */
+.login-footer {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.login-footer p {
+  font-size: 0.75rem;
+  color: #999;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.footer-link {
+  color: #4285f4;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.footer-link:hover {
+  color: #357ae8;
+  text-decoration: underline;
+}
+
+/* Footer outside card */
+.page-footer {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  margin-top: auto;
+}
+
+.page-footer p {
+  font-size: 0.75rem;
+  color: #999;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* User Info (when logged in) */
 .user-info {
   display: flex;
   align-items: center;
@@ -122,6 +244,20 @@
 @media (max-width: 768px) {
   .login-card {
     padding: 2rem 1.5rem;
+    max-width: 100%;
+  }
+  
+  .welcome-heading {
+    font-size: 1.75rem;
+  }
+  
+  .login-logo {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .logo-text {
+    text-align: center;
   }
   
   .user-info {
@@ -133,4 +269,3 @@
     text-align: center;
   }
 }
-

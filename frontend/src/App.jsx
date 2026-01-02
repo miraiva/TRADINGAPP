@@ -344,14 +344,6 @@ function App() {
       <header className="App-header">
         <div className="header-content">
           <div className="header-logo-title">
-            <img 
-              src="/logo.png" 
-              alt="Swing Edge" 
-              className="header-logo"
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
-            />
             <div>
               <h1>
                 Swing Edge{headerSubtitle ? ` - ${headerSubtitle}` : ''}
@@ -361,7 +353,14 @@ function App() {
           </div>
         </div>
         <div className="header-actions">
-          {/* Zerodha connection moved to Settings/ActionSidePanel */}
+          <img 
+            src="/logo.png" 
+            alt="Swing Edge Logo" 
+            className="header-logo-right"
+            onError={(e) => {
+              e.target.style.display = 'none';
+            }}
+          />
         </div>
       </header>
       <main className="main-content">

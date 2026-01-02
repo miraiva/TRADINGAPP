@@ -53,6 +53,18 @@ body {
   object-fit: contain;
 }
 
+.header-logo-right {
+  height: 56px;
+  width: auto;
+  object-fit: contain;
+  opacity: 0.95;
+  transition: opacity 0.2s;
+}
+
+.header-logo-right:hover {
+  opacity: 1;
+}
+
 .header-actions {
   display: flex;
   align-items: center;
