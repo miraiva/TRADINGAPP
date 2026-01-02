@@ -196,24 +196,37 @@ async def google_oauth_callback(
                 )
             
             # Find or create user
+            # First try to find by google_id
             user = db.query(User).filter(User.google_id == google_id).first()
             
             if user:
-                # Update existing user
+                # Update existing user (found by google_id)
                 user.email = email
                 user.name = name
                 user.picture = picture
                 user.last_login = datetime.utcnow()
+                logger.info(f"Updated existing user (by google_id): {email}")
             else:
-                # Create new user
-                user = User(
-                    google_id=google_id,
-                    email=email,
-                    name=name,
-                    picture=picture
-                )
-                db.add(user)
-                logger.info(f"Created new user: {email}")
+                # If not found by google_id, check by email (for users created by migration script)
+                user = db.query(User).filter(User.email == email).first()
+                
+                if user:
+                    # Update existing user (found by email) - this happens when user logs in for first time after migration
+                    user.google_id = google_id
+                    user.name = name
+                    user.picture = picture
+                    user.last_login = datetime.utcnow()
+                    logger.info(f"Updated existing user (by email) with Google ID: {email}")
+                else:
+                    # Create new user (shouldn't happen if email whitelist is working, but handle it anyway)
+                    user = User(
+                        google_id=google_id,
+                        email=email,
+                        name=name,
+                        picture=picture
+                    )
+                    db.add(user)
+                    logger.info(f"Created new user: {email}")
             
             db.commit()
             db.refresh(user)
