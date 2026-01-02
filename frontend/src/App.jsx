@@ -11,6 +11,7 @@ import ZerodhaSyncPanel from './components/ZerodhaSyncPanel'
 import ActionSidePanel from './components/ActionSidePanel'
 import SliderPanel from './components/SliderPanel'
 import DecisionAssistant from './components/DecisionAssistant'
+import GoogleAuth from './components/GoogleAuth'
 import { getDemoMode } from './utils/displayUtils'
 import { getAccountDetails, syncAccountDetailsFromDatabase } from './utils/accountUtils'
 import './App.css'
@@ -21,6 +22,8 @@ function App() {
   const [sliderContent, setSliderContent] = useState(null)
   const [sliderTitle, setSliderTitle] = useState('')
   const [headerSubtitle, setHeaderSubtitle] = useState('')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [user, setUser] = useState(null)
 
   // Get header subtitle based on demo mode and user name
   const updateHeaderSubtitle = () => {
@@ -64,8 +67,35 @@ function App() {
     }
   }
 
-  // Sync account details from database on mount
+  // Check authentication on mount
   useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('auth_token')
+      const userStr = localStorage.getItem('user')
+      
+      if (token && userStr) {
+        try {
+          const userData = JSON.parse(userStr)
+          setUser(userData)
+          setIsAuthenticated(true)
+        } catch (err) {
+          console.error('Error parsing user data:', err)
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('user')
+          setIsAuthenticated(false)
+        }
+      } else {
+        setIsAuthenticated(false)
+      }
+    }
+    
+    checkAuth()
+  }, [])
+
+  // Sync account details from database on mount (only if authenticated)
+  useEffect(() => {
+    if (!isAuthenticated) return
+    
     // Sync account details from database to localStorage
     syncAccountDetailsFromDatabase().then(synced => {
       if (synced) {
@@ -77,7 +107,7 @@ function App() {
     }).catch(err => {
       console.warn('Failed to sync account details on mount:', err)
     })
-  }, [])
+  }, [isAuthenticated])
 
   // Update header subtitle on mount and when demo mode/account details change
   useEffect(() => {
@@ -244,6 +274,16 @@ function App() {
       default:
         return null
     }
+  }
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData)
+    setIsAuthenticated(true)
+  }
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <GoogleAuth onLoginSuccess={handleLoginSuccess} />
   }
 
   return (

@@ -182,6 +182,19 @@ async def google_oauth_callback(
                     detail="Invalid user data from Google"
                 )
             
+            # Check if email is in whitelist (only allow specific emails)
+            ALLOWED_EMAILS = [
+                "ivan.e.miranda@gmail.com",
+                "shilpa.r.mayekar@gmail.com"
+            ]
+            
+            if email.lower() not in [e.lower() for e in ALLOWED_EMAILS]:
+                logger.warning(f"Unauthorized login attempt from email: {email}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied. Your email is not authorized to access this application."
+                )
+            
             # Find or create user
             user = db.query(User).filter(User.google_id == google_id).first()
             

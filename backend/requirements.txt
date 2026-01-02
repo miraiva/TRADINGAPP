@@ -32,4 +32,8 @@ pandas>=2.1.4  # For Excel file parsing
 openpyxl>=3.1.2  # Excel file support for pandas
 apscheduler==3.10.4  # For scheduled tasks (daily snapshots)
 
+# Authentication
+python-jose[cryptography]==3.3.0  # JWT token handling
+python-jose==3.3.0  # JWT token handling (fallback)
+
 

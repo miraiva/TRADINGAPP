@@ -71,7 +71,8 @@ else:
     )
 
 # Import and register API routes
-from app.api import trades, zerodha, sync, market_data, migration, debug, websocket, reference_data, payin, snapshots, ai_assistant, account
+from app.api import trades, zerodha, sync, market_data, migration, debug, websocket, reference_data, payin, snapshots, ai_assistant, account, auth
+app.include_router(auth.router)
 app.include_router(trades.router)
 app.include_router(zerodha.router)
 app.include_router(sync.router)

@@ -15,6 +15,37 @@ const api = axios.create({
   timeout: 10000, // 10 second timeout
 });
 
+// Add request interceptor to include auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor to handle 401 errors (unauthorized)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear auth token and redirect to login
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+      // Don't redirect if we're already on the login page
+      if (!window.location.pathname.includes('/auth/google/callback')) {
+        window.location.href = '/';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Separate axios instance with longer timeout for dashboard data
 const dashboardApi = axios.create({
   baseURL: API_BASE_URL,
@@ -23,6 +54,36 @@ const dashboardApi = axios.create({
   },
   timeout: 60000, // 60 second timeout for dashboard data (increased for large datasets)
 });
+
+// Add request interceptor to include auth token for dashboardApi too
+dashboardApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor to handle 401 errors (unauthorized)
+dashboardApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear auth token and redirect to login
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+      if (!window.location.pathname.includes('/auth/google/callback')) {
+        window.location.href = '/';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Helper functions for multi-account token management
 const getAccountTokens = () => {
