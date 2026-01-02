@@ -20,6 +20,15 @@ import './App.css'
 function App() {
   // Check authentication synchronously on initial render
   const checkAuthSync = () => {
+    // If we're returning from Zerodha callback, preserve auth state
+    const urlParams = new URLSearchParams(window.location.search)
+    const isZerodhaCallback = urlParams.get('request_token') && urlParams.get('status') === 'success'
+    
+    if (isZerodhaCallback) {
+      // Set flag to prevent verification during callback
+      sessionStorage.setItem('zerodha_callback_in_progress', 'true')
+    }
+    
     const token = localStorage.getItem('auth_token')
     const userStr = localStorage.getItem('user')
     
@@ -28,9 +37,11 @@ function App() {
         const userData = JSON.parse(userStr)
         return { authenticated: true, user: userData }
       } catch (err) {
-        // Invalid user data, clear it
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('user')
+        // Invalid user data, clear it (but only if not Zerodha callback)
+        if (!isZerodhaCallback) {
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('user')
+        }
         return { authenticated: false, user: null }
       }
     }
