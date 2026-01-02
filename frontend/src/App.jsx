@@ -92,6 +92,31 @@ function App() {
   // Verify authentication token is still valid with backend
   useEffect(() => {
     const verifyToken = async () => {
+      // Skip verification if Zerodha callback is in progress
+      // This prevents logging out when returning from Zerodha authentication
+      if (sessionStorage.getItem('zerodha_callback_in_progress') === 'true') {
+        console.log('Skipping token verification - Zerodha callback in progress')
+        // Use cached auth state
+        const token = localStorage.getItem('auth_token')
+        const userStr = localStorage.getItem('user')
+        if (token && userStr) {
+          try {
+            const userData = JSON.parse(userStr)
+            setUser(userData)
+            setIsAuthenticated(true)
+          } catch {
+            // Invalid user data
+            setIsAuthenticated(false)
+            setUser(null)
+          }
+        } else {
+          setIsAuthenticated(false)
+          setUser(null)
+        }
+        setIsVerifying(false)
+        return
+      }
+      
       const token = localStorage.getItem('auth_token')
       
       if (!token) {
@@ -100,7 +125,7 @@ function App() {
         setIsVerifying(false)
         return
       }
-      
+
       try {
         // Verify token with backend
         const response = await api.get('/api/auth/me')

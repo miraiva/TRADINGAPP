@@ -130,11 +130,20 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
     const status = urlParams.get('status');
 
     if (requestToken && status === 'success') {
+      // Set a flag to prevent App.jsx from re-verifying auth during Zerodha callback
+      sessionStorage.setItem('zerodha_callback_in_progress', 'true');
+      
       handleTokenExchange(requestToken);
+      
       // Clean URL but preserve any existing path to avoid navigation issues
       // Only remove query parameters, don't change the path
       const currentPath = window.location.pathname;
       window.history.replaceState({}, document.title, currentPath);
+      
+      // Clear the flag after a short delay to allow token exchange to complete
+      setTimeout(() => {
+        sessionStorage.removeItem('zerodha_callback_in_progress');
+      }, 2000);
     }
   }, []);
 
