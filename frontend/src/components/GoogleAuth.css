@@ -100,17 +100,19 @@
 .pitch-heading-light {
   font-weight: 300;
   opacity: 0.9;
-  display: block;
+  display: inline-block;
   font-size: 0.85em;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  margin-bottom: 0;
+  margin: 0;
+  padding: 0;
   line-height: 1;
+  vertical-align: baseline;
 }
 
 .pitch-heading-bold {
   font-weight: 700;
-  display: block;
+  display: inline-block;
   font-size: 1.15em;
   background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 50%, #ffffff 100%);
   -webkit-background-clip: text;
@@ -119,8 +121,10 @@
   text-shadow: 0 4px 20px rgba(255, 255, 255, 0.2);
   letter-spacing: -0.02em;
   position: relative;
-  margin-top: 0;
+  margin: 0;
+  padding: 0;
   line-height: 1;
+  vertical-align: baseline;
 }
 
 .pitch-text {
