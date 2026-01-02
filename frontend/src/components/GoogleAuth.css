@@ -104,7 +104,8 @@
   font-size: 0.85em;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  margin-bottom: 0.1rem;
+  margin-bottom: 0;
+  line-height: 1;
 }
 
 .pitch-heading-bold {
@@ -118,6 +119,8 @@
   text-shadow: 0 4px 20px rgba(255, 255, 255, 0.2);
   letter-spacing: -0.02em;
   position: relative;
+  margin-top: 0;
+  line-height: 1;
 }
 
 .pitch-text {

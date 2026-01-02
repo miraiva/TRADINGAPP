@@ -144,7 +144,6 @@ const GoogleAuth = ({ onLoginSuccess }) => {
             
             <h1 className="pitch-heading">
               <span className="pitch-heading-light">We Are</span>
-              <br />
               <span className="pitch-heading-bold">Swing Edge</span>
             </h1>
             <p className="pitch-text">
