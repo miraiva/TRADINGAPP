@@ -111,12 +111,39 @@ function App() {
         setIsAuthenticated(true)
         localStorage.setItem('user', JSON.stringify(userData))
       } catch (err) {
-        // Token is invalid or expired
-        console.log('Token verification failed, clearing auth:', err)
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('user')
-        setIsAuthenticated(false)
-        setUser(null)
+        // Only clear token if it's a 401 (Unauthorized) error
+        // Don't clear on network errors or other issues that might be temporary
+        if (err.response?.status === 401) {
+          // Token is invalid or expired
+          console.log('Token verification failed (401), clearing auth:', err)
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('user')
+          setIsAuthenticated(false)
+          setUser(null)
+        } else {
+          // For other errors (network, timeout, etc.), keep the token
+          // User might still be authenticated, just can't verify right now
+          console.warn('Token verification error (non-401), keeping auth state:', err)
+          // Use cached user data if available
+          const userStr = localStorage.getItem('user')
+          if (userStr) {
+            try {
+              const userData = JSON.parse(userStr)
+              setUser(userData)
+              setIsAuthenticated(true)
+            } catch {
+              // Invalid user data, clear it
+              localStorage.removeItem('auth_token')
+              localStorage.removeItem('user')
+              setIsAuthenticated(false)
+              setUser(null)
+            }
+          } else {
+            // No cached user data, can't maintain auth state
+            setIsAuthenticated(false)
+            setUser(null)
+          }
+        }
       } finally {
         setIsVerifying(false)
       }
