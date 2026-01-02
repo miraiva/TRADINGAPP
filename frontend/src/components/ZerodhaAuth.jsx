@@ -131,8 +131,10 @@ const ZerodhaAuth = ({ onAuthSuccess, onSyncComplete, compact = false, targetUse
 
     if (requestToken && status === 'success') {
       handleTokenExchange(requestToken);
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Clean URL but preserve any existing path to avoid navigation issues
+      // Only remove query parameters, don't change the path
+      const currentPath = window.location.pathname;
+      window.history.replaceState({}, document.title, currentPath);
     }
   }, []);
 
