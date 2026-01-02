@@ -112,21 +112,25 @@ const GoogleAuth = ({ onLoginSuccess }) => {
       {/* Left Panel - Promotional Section */}
       <div className="login-left-panel">
         <div className="left-panel-content">
-          {/* Logo */}
-          <div className="left-panel-logo">
-            <img 
-              src="/logo.png" 
-              alt="Swing Edge Logo" 
-              className="logo-image-large"
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
-            />
-          </div>
-          
-          {/* Elevator Pitch */}
+          {/* Logo and Elevator Pitch */}
           <div className="elevator-pitch">
-            <h1 className="pitch-heading">We Are Swing Edge</h1>
+            {/* Logo */}
+            <div className="left-panel-logo">
+              <img 
+                src="/logo.png" 
+                alt="Swing Edge Logo" 
+                className="logo-image-large"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
+            </div>
+            
+            <h1 className="pitch-heading">
+              <span className="pitch-heading-light">We Are</span>
+              <br />
+              <span className="pitch-heading-bold">Swing Edge</span>
+            </h1>
             <p className="pitch-text">
               Your personal trading companion designed for serious investors. Track your portfolio, 
               analyze performance, and make informed decisions with institutional-grade tools. 
