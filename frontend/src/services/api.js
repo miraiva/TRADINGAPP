@@ -34,13 +34,22 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear auth token and redirect to login
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
-      // Don't redirect if we're already on the login page
-      if (!window.location.pathname.includes('/auth/google/callback')) {
-        window.location.href = '/';
+      // Only clear Google OAuth token if the error is from an auth endpoint
+      // Don't clear on Zerodha API errors (they use different tokens)
+      const requestUrl = error.config?.url || '';
+      const isAuthEndpoint = requestUrl.includes('/api/auth/');
+      
+      if (isAuthEndpoint) {
+        // Clear auth token and redirect to login only for auth endpoint errors
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user');
+        // Don't redirect if we're already on the login page
+        if (!window.location.pathname.includes('/auth/google/callback')) {
+          window.location.href = '/';
+        }
       }
+      // For non-auth endpoints (like Zerodha), just reject the error
+      // Don't clear Google OAuth token
     }
     return Promise.reject(error);
   }
@@ -74,12 +83,21 @@ dashboardApi.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear auth token and redirect to login
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
-      if (!window.location.pathname.includes('/auth/google/callback')) {
-        window.location.href = '/';
+      // Only clear Google OAuth token if the error is from an auth endpoint
+      // Don't clear on Zerodha API errors (they use different tokens)
+      const requestUrl = error.config?.url || '';
+      const isAuthEndpoint = requestUrl.includes('/api/auth/');
+      
+      if (isAuthEndpoint) {
+        // Clear auth token and redirect to login only for auth endpoint errors
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user');
+        if (!window.location.pathname.includes('/auth/google/callback')) {
+          window.location.href = '/';
+        }
       }
+      // For non-auth endpoints (like Zerodha), just reject the error
+      // Don't clear Google OAuth token
     }
     return Promise.reject(error);
   }
