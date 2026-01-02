@@ -195,7 +195,8 @@ async def google_oauth_callback(
                     detail="Access denied. Your email is not authorized to access this application."
                 )
             
-            # Find or create user
+            # Find existing user - DO NOT CREATE NEW USERS
+            # Only users that exist in the database (from migration script) can log in
             # First try to find by google_id
             user = db.query(User).filter(User.google_id == google_id).first()
             
@@ -218,15 +219,13 @@ async def google_oauth_callback(
                     user.last_login = datetime.utcnow()
                     logger.info(f"Updated existing user (by email) with Google ID: {email}")
                 else:
-                    # Create new user (shouldn't happen if email whitelist is working, but handle it anyway)
-                    user = User(
-                        google_id=google_id,
-                        email=email,
-                        name=name,
-                        picture=picture
+                    # User not found in database - reject login
+                    # This should not happen if email whitelist is working, but reject anyway for security
+                    logger.warning(f"Login attempt from unauthorized user (not in database): {email}")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Access denied. Your account is not registered. Please contact the administrator."
                     )
-                    db.add(user)
-                    logger.info(f"Created new user: {email}")
             
             db.commit()
             db.refresh(user)
