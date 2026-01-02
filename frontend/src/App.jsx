@@ -353,14 +353,7 @@ function App() {
           </div>
         </div>
         <div className="header-actions">
-          <img 
-            src="/logo.png" 
-            alt="Swing Edge Logo" 
-            className="header-logo-right"
-            onError={(e) => {
-              e.target.style.display = 'none';
-            }}
-          />
+          {/* Logo removed */}
         </div>
       </header>
       <main className="main-content">

@@ -149,6 +149,8 @@
   letter-spacing: -0.04em;
   font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   animation: fadeInUp 0.8s ease-out 0.3s both;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .pitch-heading-light {
@@ -163,6 +165,7 @@
   line-height: 1;
   vertical-align: baseline;
   font-weight: 400;
+  white-space: nowrap;
 }
 
 .pitch-heading-bold {
@@ -180,6 +183,8 @@
   padding: 0;
   line-height: 1;
   vertical-align: baseline;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .pitch-text {

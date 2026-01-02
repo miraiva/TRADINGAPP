@@ -30,7 +30,7 @@ body {
   z-index: 100;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 1rem;
   width: 100%;
   box-sizing: border-box;
@@ -38,12 +38,15 @@ body {
 
 .header-content {
   flex: 1;
-  text-align: left;
+  text-align: center;
+  display: flex;
+  justify-content: center;
 }
 
 .header-logo-title {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 1rem;
 }
 
