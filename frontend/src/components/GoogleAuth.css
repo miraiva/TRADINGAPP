@@ -87,7 +87,59 @@
   margin-bottom: 3.5rem;
 }
 
-/* Logo styles removed - logo no longer used */
+.left-panel-logo {
+  margin-bottom: 3.5rem;
+  display: flex;
+  justify-content: flex-start;
+  animation: fadeIn 1s ease-out 0.2s both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.logo-image-large {
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+  background: transparent;
+  filter: drop-shadow(0 8px 32px rgba(0, 0, 0, 0.3));
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  mix-blend-mode: normal;
+}
+
+.logo-image-large:hover {
+  transform: scale(1.1) translateY(-4px);
+  filter: drop-shadow(0 12px 40px rgba(0, 0, 0, 0.4));
+}
+
+/* Fallback logo when image doesn't load */
+.logo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 140px;
+  height: 140px;
+}
+
+.logo-fallback-icon {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.15) 100%);
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: white;
+  font-family: 'Poppins', sans-serif;
+  letter-spacing: -0.02em;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
 
 .pitch-heading {
   font-size: 4.5rem;
@@ -107,7 +159,7 @@
   font-size: 0.75em;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin: 0 0 0.75rem 0;
+  margin: 0;
   padding: 0;
   line-height: 1.2;
   font-weight: 400;
