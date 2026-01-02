@@ -71,32 +71,21 @@ const SnapshotsTable = ({ showHeader = false, onClose = null }) => {
 
       // Fetch snapshots with higher limit to get all records
       params.limit = 1000; // Increase limit to ensure we get all snapshots
-      let data = await snapshotAPI.getSnapshots(params);
       
-      console.log(`SnapshotsTable: Fetched ${data?.length || 0} snapshots for view=${view} with params:`, params);
-      
-      // If we have account IDs for the view, also fetch snapshots for those accounts
+      // If we have account IDs for the view, fetch snapshots for all accounts in a single API call
       // (in case they don't have trading_strategy set)
       if (view !== 'OVERALL') {
         const accountIds = getAccountIdsByStrategy(view === 'LONG_TERM' ? 'LONG_TERM' : 'SWING');
         console.log(`SnapshotsTable: Account IDs for ${view}:`, accountIds);
         if (accountIds.length > 0) {
-          // Fetch snapshots for each account and merge
-          const accountSnapshots = await Promise.all(
-            accountIds.map(accountId => 
-              snapshotAPI.getSnapshots({ zerodha_user_id: accountId, limit: 1000 })
-                .catch(() => []) // Ignore errors for individual accounts
-          )
-          );
-          // Flatten and merge, avoiding duplicates
-          const allAccountSnapshots = accountSnapshots.flat();
-          console.log(`SnapshotsTable: Fetched ${allAccountSnapshots.length} additional snapshots from account IDs`);
-          const existingIds = new Set(data.map(s => s.id));
-          const newSnapshots = allAccountSnapshots.filter(s => !existingIds.has(s.id));
-          data = [...data, ...newSnapshots];
-          console.log(`SnapshotsTable: Added ${newSnapshots.length} new snapshots, total: ${data.length}`);
+          // Optimize: Use single API call with multiple account IDs instead of multiple calls
+          params.zerodha_user_ids = accountIds.join(',');
         }
       }
+      
+      let data = await snapshotAPI.getSnapshots(params);
+      
+      console.log(`SnapshotsTable: Fetched ${data?.length || 0} snapshots for view=${view} with params:`, params);
       
       console.log(`SnapshotsTable: Setting ${data?.length || 0} snapshots`);
       setSnapshots(data || []);

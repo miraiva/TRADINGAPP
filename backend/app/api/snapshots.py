@@ -4,6 +4,7 @@ Portfolio Snapshot API endpoints
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import date, datetime, timedelta
@@ -72,18 +73,29 @@ async def create_snapshot_endpoint(
 
 @router.get("/", response_model=List[SnapshotResponse])
 async def get_snapshots(
-    zerodha_user_id: Optional[str] = Query(None, description="Filter by Zerodha user ID"),
+    zerodha_user_id: Optional[str] = Query(None, description="Filter by Zerodha user ID (single)"),
+    zerodha_user_ids: Optional[str] = Query(None, description="Filter by multiple Zerodha user IDs (comma-separated)"),
     trading_strategy: Optional[str] = Query(None, description="Filter by trading strategy"),
     start_date: Optional[date] = Query(None, description="Start date for date range"),
     end_date: Optional[date] = Query(None, description="End date for date range"),
     limit: Optional[int] = Query(100, description="Maximum number of snapshots to return"),
     db: Session = Depends(get_db)
 ):
-    """Get portfolio snapshots with optional filters"""
+    """Get portfolio snapshots with optional filters
+    
+    Supports filtering by single user_id or multiple user_ids (comma-separated)
+    to reduce the number of API calls needed from the frontend.
+    """
     try:
         query = db.query(PortfolioSnapshot)
         
-        if zerodha_user_id:
+        # Support both single user_id and multiple user_ids
+        if zerodha_user_ids:
+            # Parse comma-separated user IDs
+            user_id_list = [uid.strip() for uid in zerodha_user_ids.split(',') if uid.strip()]
+            if user_id_list:
+                query = query.filter(PortfolioSnapshot.zerodha_user_id.in_(user_id_list))
+        elif zerodha_user_id:
             query = query.filter(PortfolioSnapshot.zerodha_user_id == zerodha_user_id)
         
         if trading_strategy:

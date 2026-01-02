@@ -168,41 +168,54 @@ def _store_symbol_ltps(db: Session, snapshot_taken_at: datetime):
     Store LTP for all unique symbols from open trades (overall, swing, long term)
     This table gets overridden every time a snapshot is taken
     
+    Optimized to use bulk operations instead of individual inserts
+    
     Args:
         db: Database session
         snapshot_taken_at: Timestamp when snapshot was taken
     """
     try:
-        # Get all unique symbols from open trades (regardless of strategy/account)
-        open_trades = db.query(Trade).filter(Trade.status == TradeStatus.OPEN).all()
+        # Optimized: Use SQL aggregation to get unique symbols with latest price
+        # This avoids loading all trades into memory
+        from sqlalchemy import func, distinct
         
-        # Get unique symbols with their current_price (LTP)
+        # Get unique symbols with their current_price (LTP) using SQL aggregation
+        # Use MAX to get the latest price if multiple trades exist for same symbol
+        symbol_price_results = db.query(
+            Trade.symbol,
+            func.max(Trade.current_price).label('max_price')
+        ).filter(
+            Trade.status == TradeStatus.OPEN,
+            Trade.symbol.isnot(None),
+            Trade.current_price.isnot(None),
+            Trade.current_price > 0
+        ).group_by(Trade.symbol).all()
+        
+        # Build symbol_ltp_map from results
         symbol_ltp_map = {}
-        for trade in open_trades:
-            symbol = trade.symbol.upper() if trade.symbol else None
-            if symbol and trade.current_price and trade.current_price > 0:
-                # If symbol already exists, keep the most recent price (or average if needed)
-                # For now, we'll use the latest price we encounter
-                if symbol not in symbol_ltp_map:
-                    symbol_ltp_map[symbol] = trade.current_price
-                else:
-                    # Use the latest price (could also average, but latest is simpler)
-                    symbol_ltp_map[symbol] = trade.current_price
+        for symbol, max_price in symbol_price_results:
+            symbol_upper = symbol.upper() if symbol else None
+            if symbol_upper and max_price:
+                symbol_ltp_map[symbol_upper] = max_price
         
         logger.info(f"Storing LTPs for {len(symbol_ltp_map)} unique symbols at snapshot time {snapshot_taken_at}")
         
-        # Delete all existing entries (override the table)
+        # Delete all existing entries (override the table) - single operation
         db.query(SnapshotSymbolPrice).delete()
         logger.info("Cleared existing snapshot symbol prices")
         
-        # Insert new entries
-        for symbol, ltp in symbol_ltp_map.items():
-            symbol_price = SnapshotSymbolPrice(
-                symbol=symbol,
-                ltp=ltp,
-                snapshot_taken_at=snapshot_taken_at
-            )
-            db.add(symbol_price)
+        # Bulk insert new entries - batch insert (compatible with all SQLAlchemy versions)
+        if symbol_ltp_map:
+            symbol_prices = [
+                SnapshotSymbolPrice(
+                    symbol=symbol,
+                    ltp=ltp,
+                    snapshot_taken_at=snapshot_taken_at
+                )
+                for symbol, ltp in symbol_ltp_map.items()
+            ]
+            # Add all objects at once (more efficient than individual adds)
+            db.add_all(symbol_prices)
         
         db.commit()
         logger.info(f"Stored {len(symbol_ltp_map)} symbol LTPs in snapshot_symbol_prices table")

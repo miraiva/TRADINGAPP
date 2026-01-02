@@ -75,6 +75,8 @@ class Trade(Base):
         Index('idx_zerodha_user_status', 'zerodha_user_id', 'status'),
         # Index for ordering by buy_date and created_at (used in get_all_trades)
         Index('idx_buy_date_created_at', 'buy_date', 'created_at'),
+        # Index for date-range queries in snapshot calculations (zerodha_user_id, buy_date)
+        Index('idx_zerodha_user_buy_date', 'zerodha_user_id', 'buy_date'),
     )
     
     def calculate_profit_loss(self):

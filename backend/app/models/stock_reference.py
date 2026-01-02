@@ -35,6 +35,10 @@ class StockReference(Base):
     # Composite index for faster lookups
     __table_args__ = (
         Index('idx_symbol_exchange', 'symbol', 'exchange'),
+        # Index for company_name search (helps with LIKE queries)
+        Index('idx_company_name', 'company_name'),
+        # Index for exchange + company_name (common search pattern)
+        Index('idx_exchange_company_name', 'exchange', 'company_name'),
     )
     
     def to_dict(self):

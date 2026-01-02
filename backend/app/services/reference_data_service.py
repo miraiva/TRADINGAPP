@@ -126,19 +126,56 @@ def search_stocks(
     """
     Search stocks by symbol or company name
     If exact symbol match not found, try to fetch from API
+    
+    Optimized to prefer prefix matching (which can use indexes) when possible
     """
     query = query.upper().strip()
     if not query:
         return []
     
-    # Search in database
-    results = db.query(StockReference).filter(
+    # Optimize: Try exact match first (fastest)
+    exact_match = db.query(StockReference).filter(
+        StockReference.exchange == exchange,
+        StockReference.symbol == query
+    ).first()
+    
+    if exact_match:
+        return [exact_match]
+    
+    # Optimize: Prefer prefix matching (can use indexes) over wildcard matching
+    # Prefix matching: "RELI" matches "RELIANCE" - can use index on symbol
+    # Wildcard matching: "%RELI%" requires full table scan
+    
+    # Try prefix matching first (faster, can use index)
+    prefix_results = db.query(StockReference).filter(
+        StockReference.exchange == exchange,
+        or_(
+            StockReference.symbol.like(f"{query}%"),  # Prefix match - can use index
+            StockReference.company_name.ilike(f"{query}%")  # Prefix match - can use index
+        )
+    ).limit(limit).all()
+    
+    # If we got enough results with prefix matching, return them
+    if len(prefix_results) >= limit:
+        return prefix_results
+    
+    # Otherwise, also search with wildcard matching (slower but more comprehensive)
+    wildcard_results = db.query(StockReference).filter(
         StockReference.exchange == exchange,
         or_(
             StockReference.symbol.like(f"%{query}%"),
             StockReference.company_name.ilike(f"%{query}%")
         )
     ).limit(limit).all()
+    
+    # Combine results, avoiding duplicates
+    results = prefix_results
+    existing_symbols = {r.symbol for r in results}
+    for r in wildcard_results:
+        if r.symbol not in existing_symbols and len(results) < limit:
+            results.append(r)
+    
+    results = results[:limit]  # Ensure we don't exceed limit
     
     # If no results and query looks like a symbol (short, alphanumeric, no spaces)
     # Try to fetch it from API and create entry
